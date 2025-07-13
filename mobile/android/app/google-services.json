@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "725118789084",
+    "project_id": "automark-cs-project",
+    "storage_bucket": "automark-cs-project.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:725118789084:android:367654a33ee0230bfd5b19",
+        "android_client_info": {
+          "package_name": "com.patrick.automark"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCql1-rJ2_wnB4zdNhK7JjOHlCCk0WIoKw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,46 @@
+# Flutter/Dart related
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# IDEs and editors
+.idea/
+.vscode/
+
+# Android related
+/local.properties
+/.gradle/
+/app/build/
+/captures/
+
+# Gradle wrapper files (important: DO NOT ignore gradle-wrapper.jar!)
+/gradle/wrapper/gradle-wrapper.properties
+/gradle/wrapper/gradle-wrapper.jar
+
+/gradlew
+/gradlew.bat
+
+# Generated plugin registrant
+GeneratedPluginRegistrant.java
+
+# Native build outputs
+.cxx/
+
+# Keystore files (never commit these!)
+key.properties
+**/*.keystore
+**/*.jks
+
+# Miscellaneous
+*.log
+*.tmp
+
+# Mac OS files
+.DS_Store
+
+# Windows files
+Thumbs.db
