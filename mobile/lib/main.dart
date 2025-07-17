@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mobile/screens/unmarked_scripts.dart';
 import 'package:provider/provider.dart';
 import 'widgets/auth_guard.dart';
+import '../models/result_model.dart';
 
 import 'firebase_options.dart';
 import 'providers/answer_provider.dart';
