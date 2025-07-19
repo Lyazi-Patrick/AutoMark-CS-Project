@@ -62,7 +62,7 @@ class _UploadScriptScreenState extends State<UploadScriptScreen> {
     for (final file in imageFiles) {
       final inputImage = InputImage.fromFile(file);
       final recognizedText = await textRecognizer.processImage(inputImage);
-      fullText += _formatExtractedText(recognizedText) + '\n\n';
+      fullText += '${_formatExtractedText(recognizedText)}\n\n';
     }
 
     await textRecognizer.close();

@@ -22,6 +22,10 @@ class _ScanScreenState extends State<ScanScreen> {
   bool _fromBatchScan = false;
   bool _hasOpenedCamera = false; // Prevent reopening camera repeatedly
 
+  // Add controllers for student name and number
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _numberController = TextEditingController();
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -37,7 +41,13 @@ class _ScanScreenState extends State<ScanScreen> {
       final answerEntries = context.read<AnswerProvider>().entries;
 
       final score = gradeAnswers(parsedStudentAnswers, answerEntries);
-      context.read<ResultProvider>().setResult(score, answerEntries.length);
+      // Pass name and number to ResultProvider
+      context.read<ResultProvider>().setResult(
+        score,
+        answerEntries.length,
+        studentName: _nameController.text.trim(),
+        studentNumber: _numberController.text.trim(),
+      );
 
       Navigator.pushNamed(context, '/result');
     }
@@ -80,7 +90,13 @@ class _ScanScreenState extends State<ScanScreen> {
     final answerEntries = context.read<AnswerProvider>().entries;
 
     final score = gradeAnswers(parsedStudentAnswers, answerEntries);
-    context.read<ResultProvider>().setResult(score, answerEntries.length);
+    // Pass name and number to ResultProvider
+    context.read<ResultProvider>().setResult(
+      score,
+      answerEntries.length,
+      studentName: _nameController.text.trim(),
+      studentNumber: _numberController.text.trim(),
+    );
 
     Navigator.pushNamed(context, '/result');
   }
@@ -94,6 +110,25 @@ class _ScanScreenState extends State<ScanScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
+            // Student Name Field
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Student Name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Student Number Field
+            TextField(
+              controller: _numberController,
+              decoration: const InputDecoration(
+                labelText: 'Student Number',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 20),
             if (!_fromBatchScan)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,

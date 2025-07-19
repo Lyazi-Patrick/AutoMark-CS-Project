@@ -67,7 +67,7 @@ class AutoMarkApp extends StatelessWidget {
           '/settings': (context) => const AuthGuard(child: SettingsScreen()),
           '/profile': (context) => const AuthGuard(child: ProfileScreen()),
           '/unmarked':(context) => const AuthGuard(child: UnmarkedScriptsScreen()),
-          '/marked_scripts': (context) => AuthGuard(child: MarkedScriptsScreen()),
+          '/marked_scripts': (context) => const AuthGuard(child: MarkedScriptsScreen()),
           '/downloads': (context) => const AuthGuard(child: DownloadsScreen()),
         },
       ),

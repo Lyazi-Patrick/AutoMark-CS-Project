@@ -7,8 +7,16 @@ import '../widgets/custom_drawer.dart';
 import '../utils/pdf_generator.dart';
 import '../providers/dashboard_provider.dart';
 
-class ResultScreen extends StatelessWidget {
+class ResultScreen extends StatefulWidget {
   const ResultScreen({super.key});
+
+  @override
+  State<ResultScreen> createState() => _ResultScreenState();
+}
+
+class _ResultScreenState extends State<ResultScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   double calculateAverage(List<QueryDocumentSnapshot> docs) {
     if (docs.isEmpty) return 0;
@@ -153,142 +161,193 @@ class ResultScreen extends StatelessWidget {
       drawer: const CustomDrawer(),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
-        child: StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('results')
-              .orderBy('timestamp', descending: true)
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
+        child: Column(
+          children: [
+            // --- Search Bar ---
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                labelText: 'Search by name or student number',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          setState(() {
+                            _searchQuery = '';
+                            _searchController.clear();
+                          });
+                        },
+                      )
+                    : null,
+                border: const OutlineInputBorder(),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value.trim().toLowerCase();
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('results')
+                    .orderBy('timestamp', descending: true)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-            if (snapshot.hasError) {
-              return Center(
-                child: Text(
-                  'Error fetching results: ${snapshot.error}',
-                  style: const TextStyle(color: Colors.red),
-                ),
-              );
-            }
-
-            final docs = snapshot.data?.docs ?? [];
-
-            if (docs.isEmpty) {
-              return const Center(child: Text('No results available yet.'));
-            }
-
-            final avgScore = calculateAverage(docs).toStringAsFixed(1);
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Class Performance",
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text(
+                        'Error fetching results: ${snapshot.error}',
+                        style: const TextStyle(color: Colors.red),
                       ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text("Average Score: $avgScore%",
-                        style: const TextStyle(fontWeight: FontWeight.w600)),
-                    Text("Submissions: ${docs.length}",
-                        style: const TextStyle(fontWeight: FontWeight.w600)),
-                  ],
-                ),
-                const Divider(height: 30),
-                const Text(
-                  "Student Scores",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: ListView.separated(
-                    itemCount: docs.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final doc = docs[index];
-                      final data = doc.data() as Map<String, dynamic>;
-                      final name = data['name'] ?? 'Unnamed';
-                      final score = data['score'] ?? 0;
-                      final method = data['method'] ?? 'manual';
-                      final feedback = data['feedback'] ?? '';
+                    );
+                  }
 
-                      return Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(10),
-                          color: Colors.grey.shade100,
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
+                  final docs = snapshot.data?.docs ?? [];
+
+                  // --- Filtering logic ---
+                  final filteredDocs = docs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final name = (data['name'] ?? '').toString().toLowerCase();
+                    final studentNumber = (data['studentNumber'] ?? '').toString().toLowerCase();
+                    return _searchQuery.isEmpty ||
+                        name.contains(_searchQuery) ||
+                        studentNumber.contains(_searchQuery);
+                  }).toList();
+
+                  if (filteredDocs.isEmpty) {
+                    return const Center(child: Text('No results found.'));
+                  }
+
+                  final avgScore = calculateAverage(filteredDocs).toStringAsFixed(1);
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Class Performance",
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("Average Score: $avgScore%",
+                              style: const TextStyle(fontWeight: FontWeight.w600)),
+                          Text("Submissions: ${filteredDocs.length}",
+                              style: const TextStyle(fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                      const Divider(height: 30),
+                      const Text(
+                        "Student Scores",
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: ListView.separated(
+                          itemCount: filteredDocs.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final doc = filteredDocs[index];
+                            final data = doc.data() as Map<String, dynamic>;
+                            final name = data['name'] ?? 'Unnamed';
+                            final score = data['score'] ?? 0;
+                            final method = data['method'] ?? 'manual';
+                            final feedback = data['feedback'] ?? '';
+                            final studentNumber = data['studentNumber'] ?? '';
+
+                            return Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade300),
+                                borderRadius: BorderRadius.circular(10),
+                                color: Colors.grey.shade100,
+                              ),
+                              child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    name,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          name,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        if (studentNumber != '')
+                                          Text(
+                                            "Student #: $studentNumber",
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.blueGrey,
+                                            ),
+                                          ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          "Method: ${method.toUpperCase()}",
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                        if (feedback.isNotEmpty) ...[
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            "Feedback: $feedback",
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    "Method: ${method.toUpperCase()}",
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                  if (feedback.isNotEmpty) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      "Feedback: $feedback",
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.black87,
+                                  const SizedBox(width: 12),
+                                  Column(
+                                    children: [
+                                      Text(
+                                        "$score%",
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.green,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                      IconButton(
+                                        icon: const Icon(Icons.delete, color: Colors.red),
+                                        tooltip: "Delete Result",
+                                        onPressed: () => _deleteSingleResult(context, doc.id),
+                                      ),
+                                    ],
+                                  ),
                                 ],
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              children: [
-                                Text(
-                                  "$score%",
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green,
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red),
-                                  tooltip: "Delete Result",
-                                  onPressed: () => _deleteSingleResult(context, doc.id),
-                                ),
-                              ],
-                            ),
-                          ],
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            );
-          },
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
-      bottomNavigationBar: AutoMarkBottomNav(currentIndex: 2),
-    );
+        bottomNavigationBar: const AutoMarkBottomNav(currentIndex: 2),
+      );
+    }
   }
-}
