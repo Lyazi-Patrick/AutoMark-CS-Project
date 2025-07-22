@@ -41,15 +41,7 @@ class CustomDrawer extends StatelessWidget {
               title: const Text("Profile"),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.pushNamed(context, '/profile'); // Optional
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.history),
-              title: const Text("History"),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.pushNamed(context, '/history'); // Optional
+                Navigator.pushNamed(context, '/profile');
               },
             ),
             ListTile(
@@ -63,12 +55,12 @@ class CustomDrawer extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.settings),
               title: const Text('Settings'),
-              onTap: () => Navigator.pushReplacementNamed(context, '/settings'),
+              onTap: () => Navigator.pushNamed(context, '/settings'),
             ),
             ListTile(
               leading: Icon(Icons.mark_chat_unread),
               title: Text('Unmarked Scripts'),
-              onTap: () => Navigator.pushReplacementNamed(context, '/unmarked'),
+              onTap: () => Navigator.pushNamed(context, '/unmarked'),
             ),
             ListTile(
               leading: const Icon(Icons.check_circle_outline),
@@ -83,8 +75,10 @@ class CustomDrawer extends StatelessWidget {
                   context: context,
                   applicationName: 'AutoMark',
                   applicationVersion: 'v1.0.0',
-                  applicationIcon:
-                      Image.asset('assets/icons/bluetick.png', height: 40),
+                  applicationIcon: Image.asset(
+                    'assets/icons/bluetick.png',
+                    height: 40,
+                  ),
                   children: const [
                     Text("AutoMark automatically grades scanned exam scripts."),
                     SizedBox(height: 10),
@@ -103,21 +97,21 @@ class CustomDrawer extends StatelessWidget {
               onTap: () async {
                 final shouldLogout = await showDialog<bool>(
                   context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Logout'),
-                    content:
-                        const Text('Are you sure you want to logout?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancel'),
+                  builder:
+                      (context) => AlertDialog(
+                        title: const Text('Logout'),
+                        content: const Text('Are you sure you want to logout?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Logout'),
+                          ),
+                        ],
                       ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Logout'),
-                      ),
-                    ],
-                  ),
                 );
 
                 if (shouldLogout == true) {

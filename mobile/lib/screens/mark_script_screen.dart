@@ -12,10 +12,13 @@ class MarkScriptScreen extends StatefulWidget {
 
 class _MarkScriptScreenState extends State<MarkScriptScreen> {
   bool _isLoading = false;
-  int? _score;
+  double? _score;
   int? _total;
   String? _aiMarkingResult;
-  final _manualController = TextEditingController();
+  List<Map<String, String>>? _aiFeedbackBlocks; // NEW: Parsed AI feedback
+  List<Map<String, String>>?
+  _autoFeedbackBlocks; // NEW: Parsed auto-mark feedback
+  // final _manualController = TextEditingController(); // NEW: Removed manual controller
 
   // Helper to parse OCR text into Q/A pairs (naive example, adjust as needed)
   List<Map<String, String>> _parseQAPairs(String ocrText) {
@@ -35,6 +38,36 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
     return pairs;
   }
 
+  // NEW: Parse feedback blocks from AI or auto-marking
+  List<Map<String, String>> parseFeedbackBlocks(String text) {
+    final blocks = <Map<String, String>>[];
+    final regex = RegExp(
+      r'Q:(.*?)A:(.*?)Mark:(.*?)Feedback:(.*?)(?=Q:|\Z)',
+      dotAll: true,
+      caseSensitive: false,
+    );
+    for (final match in regex.allMatches(text)) {
+      blocks.add({
+        'question': match.group(1)?.trim() ?? '',
+        'answer': match.group(2)?.trim() ?? '',
+        'mark': match.group(3)?.trim() ?? '',
+        'feedback': match.group(4)?.trim() ?? '',
+      });
+    }
+    return blocks;
+  }
+
+  // NEW: Robustly extract all marks from AI response
+  List<double> extractAllMarks(String text) {
+    final marks = <double>[];
+    final regex = RegExp(r'Mark:\s*([0-9]+(\.[0-9]+)?)', caseSensitive: false);
+    for (final match in regex.allMatches(text)) {
+      final markNum = double.tryParse(match.group(1) ?? '0') ?? 0;
+      marks.add(markNum);
+    }
+    return marks;
+  }
+
   Future<void> _autoMark(Map<String, dynamic> script) async {
     setState(() => _isLoading = true);
 
@@ -52,15 +85,56 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
       }
 
       final answerKey = answerKeySnap['answers'] as List<dynamic>;
-      final parsedAnswers = parseAnswers(script['ocrText']);
-      final score = gradeAnswers(parsedAnswers, answerKey);
+      final studentQAPairs = parseStudentQAPairs(script['ocrText']);
+      final score = gradeAnswersQAMatch(studentQAPairs, answerKey);
 
       setState(() {
-        _score = score;
+        _score = score.toDouble();
         _total = answerKey.length;
       });
 
-      await _saveResult(script, score, answerKey.length, method: 'auto');
+      // NEW: Generate feedback blocks for auto-marking
+      final List<Map<String, String>> feedbackBlocks = [];
+      for (int i = 0; i < studentQAPairs.length; i++) {
+        final studentQ = studentQAPairs[i]['question'] ?? '';
+        final studentA = studentQAPairs[i]['answer'] ?? '';
+        // Find best match in answer key
+        final idx = findBestMatchIndex(studentQ, answerKey, {});
+        String mark = '0';
+        String feedback = 'Incorrect or not matched.';
+        if (idx != null) {
+          final correctA =
+              (answerKey[idx]['answer'] ?? '')
+                  .toString()
+                  .toLowerCase()
+                  .replaceAll(RegExp(r'[^\w\s]'), '')
+                  .trim();
+          final studentAClean =
+              studentA.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '').trim();
+          if (studentAClean == correctA) {
+            mark = '1';
+            feedback = 'Correct.';
+          } else {
+            feedback = 'Expected: ${answerKey[idx]['answer']}';
+          }
+        }
+        feedbackBlocks.add({
+          'question': studentQ,
+          'answer': studentA,
+          'mark': mark,
+          'feedback': feedback,
+        });
+      }
+      setState(() {
+        _autoFeedbackBlocks = feedbackBlocks;
+      });
+
+      await _saveResult(
+        script,
+        score.toDouble(),
+        answerKey.length,
+        method: 'auto',
+      );
     } catch (e) {
       _showSnackBar("Auto-marking failed: $e", isError: true);
     } finally {
@@ -74,24 +148,35 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
     try {
       final ocrText = script['ocrText'] ?? '';
       final qaPairs = _parseQAPairs(ocrText);
-      if (qaPairs.isEmpty) {
-        _showSnackBar("No Q/A pairs found in OCR text.", isError: true);
+      String aiResult;
+      if (qaPairs.isNotEmpty) {
+        aiResult = await AIMarkingService.markAnswersWithAI(qaPairs);
+      } else if (ocrText.trim().isNotEmpty) {
+        // Send the plain text to the AI service for marking
+        aiResult = await AIMarkingService.markTextWithAI(ocrText);
+      } else {
+        _showSnackBar("No text found to analyze.", isError: true);
         setState(() => _isLoading = false);
         return;
       }
-      final aiResult = await AIMarkingService.markAnswersWithAI(
-        qaPairs,
-      ); // NEW: Send to Cohere
+      final feedbackBlocks = parseFeedbackBlocks(aiResult);
+      // NEW: Robustly extract all marks
+      final marks = extractAllMarks(aiResult);
+      double aiScore = marks.fold(0, (sum, m) => sum + m);
+      int aiTotal = marks.length;
       setState(() {
-        _aiMarkingResult = aiResult; // NEW: Store AI feedback
+        _aiMarkingResult = aiResult;
+        _aiFeedbackBlocks = feedbackBlocks;
+        _score = aiScore;
+        _total = aiTotal;
       });
       await _saveResult(
         script,
-        null,
-        null,
+        aiScore,
+        aiTotal,
         method: 'ai',
         aiFeedback: aiResult,
-      ); // NEW: Save AI result
+      );
     } catch (e) {
       _showSnackBar("AI marking failed: $e", isError: true);
     } finally {
@@ -99,26 +184,12 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
     }
   }
 
-  Future<void> _saveManualScore(Map<String, dynamic> script) async {
-    final score = int.tryParse(_manualController.text.trim());
-    if (score == null || score < 0) {
-      _showSnackBar("⚠ Enter a valid positive number", isError: true);
-      return;
-    }
-
-    // Optional: You can set a maximum score limit if desired
-    if (score > 100) {
-      _showSnackBar("⚠ Score too high! Max is 100", isError: true);
-      return;
-    }
-
-    await _saveResult(script, score, null, method: 'manual');
-  }
+  // Remove _saveManualScore method entirely // NEW
 
   // NEW: Save result now supports saving AI feedback (aiFeedback param)
   Future<void> _saveResult(
     Map<String, dynamic> script,
-    int? score,
+    double? score,
     int? total, {
     required String method,
     String? aiFeedback,
@@ -128,7 +199,8 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
     // Save to /results
     await FirebaseFirestore.instance.collection('results').add({
       'name': script['name'],
-      'score': score ?? 0,
+      'number': script['number'] ?? '',
+      'score': score ?? 0.0,
       'total': total ?? 0,
       'method': method,
       'aiFeedback': aiFeedback, // NEW: Save AI feedback
@@ -138,7 +210,7 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
     // Update script status to 'marked'
     await FirebaseFirestore.instance.collection('scripts').doc(id).update({
       'status': 'marked',
-      'score': score ?? 0,
+      'score': score ?? 0.0,
       'total': total ?? 0,
       'method': method,
       'aiFeedback': aiFeedback, // NEW: Save AI feedback
@@ -160,7 +232,6 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
 
   @override
   void dispose() {
-    _manualController.dispose();
     super.dispose();
   }
 
@@ -204,6 +275,8 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
                     // OCR Text
                     Expanded(
                       child: Container(
+                        width: double.infinity,
+                        margin: EdgeInsets.zero,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.grey.shade300),
@@ -222,11 +295,15 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
                     // Auto mark
                     ElevatedButton.icon(
                       icon: const Icon(Icons.bolt),
-                      label: const Text("Auto Mark"),
+                      label: const Text("Use Answer Keys"),
                       onPressed: () => _autoMark(script),
                       style: ElevatedButton.styleFrom(
                         minimumSize: const Size.fromHeight(50),
-                        backgroundColor: Colors.blue,
+                        backgroundColor:
+                            Theme.of(
+                              context,
+                            ).primaryColor, // NEW: Use theme primary color
+                        foregroundColor: Colors.white, // NEW: White text
                       ),
                     ),
 
@@ -235,41 +312,49 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
                     // NEW: Button to trigger AI marking using Cohere
                     ElevatedButton.icon(
                       icon: const Icon(Icons.smart_toy),
-                      label: const Text("AI Mark (Cohere)"),
+                      label: const Text("AI Marking"),
                       onPressed: () => _aiMark(script),
                       style: ElevatedButton.styleFrom(
                         minimumSize: const Size.fromHeight(50),
-                        backgroundColor: Colors.deepPurple,
+                        backgroundColor:
+                            Theme.of(context)
+                                .colorScheme
+                                .secondary, // NEW: Use theme secondary color
+                        foregroundColor: Colors.white, // NEW: White text
                       ),
                     ),
 
                     const SizedBox(height: 16),
 
                     // Manual mark
-                    TextField(
-                      controller: _manualController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: "Enter Manual Score",
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.check_circle_outline),
-                      label: const Text("Submit Manual Score"),
-                      onPressed: () => _saveManualScore(script),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(50),
-                      ),
-                    ),
+                    // TextField(
+                    //   controller: _manualController,
+                    //   keyboardType: TextInputType.number,
+                    //   decoration: const InputDecoration(
+                    //     labelText: "Enter Manual Score",
+                    //     border: OutlineInputBorder(),
+                    //   ),
+                    // ),
+                    // const SizedBox(height: 10),
+                    // ElevatedButton.icon(
+                    //   icon: const Icon(Icons.check_circle_outline),
+                    //   label: const Text("Submit Manual Score"),
+                    //   onPressed: () => _saveManualScore(script),
+                    //   style: ElevatedButton.styleFrom(
+                    //     minimumSize: const Size.fromHeight(50),
+                    //   ),
+                    // ),
 
                     // Result preview
                     if (_score != null && _total != null) ...[
                       const SizedBox(height: 20),
                       Center(
                         child: Text(
-                          "Preview Score: $_score / $_total",
+                          "Preview Score: " +
+                              (_score! % 1 == 0
+                                  ? _score!.toInt().toString()
+                                  : _score!.toStringAsFixed(2)) +
+                              " / $_total",
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -278,22 +363,101 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
                         ),
                       ),
                     ],
+                    // NEW: Display auto-marking feedback blocks
+                    if (_autoFeedbackBlocks != null &&
+                        _autoFeedbackBlocks!.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      const Text(
+                        "Answer Key Feedback:",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      ..._autoFeedbackBlocks!
+                          .map(
+                            (block) => Card(
+                              margin: const EdgeInsets.symmetric(vertical: 6),
+                              child: Padding(
+                                padding: const EdgeInsets.all(10),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Q: ${block['question']}",
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      "A: ${block['answer']}",
+                                      style: const TextStyle(
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                    Text(
+                                      "Mark: ${block['mark']}",
+                                      style: const TextStyle(
+                                        color: Colors.blue,
+                                      ),
+                                    ),
+                                    Text(
+                                      "Feedback: ${block['feedback']}",
+                                      style: const TextStyle(
+                                        color: Colors.deepPurple,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ],
                     // NEW: Display the AI marking feedback/result if available
-                    if (_aiMarkingResult != null) ...[
+                    if (_aiFeedbackBlocks != null &&
+                        _aiFeedbackBlocks!.isNotEmpty) ...[
                       const SizedBox(height: 20),
                       const Text(
                         "AI Marking Feedback:",
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.deepPurple.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(_aiMarkingResult!),
-                      ),
+                      ..._aiFeedbackBlocks!
+                          .map(
+                            (block) => Card(
+                              margin: const EdgeInsets.symmetric(vertical: 6),
+                              child: Padding(
+                                padding: const EdgeInsets.all(10),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Q: ${block['question']}",
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      "A: ${block['answer']}",
+                                      style: const TextStyle(
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                    Text(
+                                      "Mark: ${block['mark']}",
+                                      style: const TextStyle(
+                                        color: Colors.blue,
+                                      ),
+                                    ),
+                                    Text(
+                                      "Feedback: ${block['feedback']}",
+                                      style: const TextStyle(
+                                        color: Colors.deepPurple,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
                     ],
                   ],
                 ),

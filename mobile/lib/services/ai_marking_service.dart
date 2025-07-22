@@ -2,7 +2,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class AIMarkingService {
-  static const String _apiKey = '';
+  static const String _apiKey = '6A1SzbNqSpmBRTfZzVMt8k7fj653gSy8TipWIzZO';
   static const String _url = 'https://api.cohere.ai/v1/generate';
 
   //Sends a list of question/answer pairs to Cohere and returns the marking result as a string.
@@ -36,6 +36,37 @@ class AIMarkingService {
         return data['generations'][0]['text'];
       } else {
         return 'Error: \\n${response.body}';
+      }
+    } catch (e) {
+      return 'Exception: $e';
+    }
+  }
+
+  // Add a method to mark plain text
+  static Future<String> markTextWithAI(String text) async {
+    final headers = {
+      'Authorization': 'Bearer $_apiKey',
+      'Content-Type': 'application/json',
+      'Cohere-Version': '2022-12-06',
+    };
+    final prompt =
+        'Analyze and mark the following student script. For each question and answer you find, give a mark out of 1 and a short feedback. Format: Q: ... A: ... Mark: ... Feedback: ...\nScript:\n$text';
+    final body = jsonEncode({
+      'model': 'command',
+      'prompt': prompt,
+      'max_tokens': 800,
+    });
+    try {
+      final response = await http.post(
+        Uri.parse(_url),
+        headers: headers,
+        body: body,
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['generations'][0]['text'];
+      } else {
+        return 'Error: \n${response.body}';
       }
     } catch (e) {
       return 'Exception: $e';

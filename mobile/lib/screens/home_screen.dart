@@ -2,37 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/bottom_navbar.dart';
 import '../widgets/custom_drawer.dart'; // ✅ Make sure this import is here
+import '../utils/marked_scripts_utils.dart'; // NEW: Import shared marked scripts utils
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   Future<Map<String, dynamic>> fetchDashboardStats() async {
-    final resultSnapshot = await FirebaseFirestore.instance
-        .collection('results')
-        .orderBy('timestamp', descending: true)
-        .get();
+    final scriptsSnapshot = await getMarkedScriptsQuery().get();
 
-    final answerKeySnapshot = await FirebaseFirestore.instance
-        .collection('answer_keys')
-        .orderBy('timestamp', descending: true)
-        .limit(1)
-        .get();
+    final scripts = scriptsSnapshot.docs;
+    final submissions = scripts.length;
 
-    final results = resultSnapshot.docs;
-    final submissions = results.length;
+    final average = calculateAveragePercentage(scripts);
 
-    final average = submissions > 0
-        ? results.fold(0, (sum, doc) => sum + (doc['score'] as int)) / submissions
-        : 0;
-
-    final lastStudent = submissions > 0 ? results.first['name'] ?? 'Unnamed' : 'No submissions yet';
-    final answerKeyAvailable = answerKeySnapshot.docs.isNotEmpty;
+    final lastStudent =
+        submissions > 0
+            ? scripts.first['name'] ?? 'Unnamed'
+            : 'No submissions yet';
 
     return {
       'submissions': submissions,
       'average': average.toStringAsFixed(1),
       'lastStudent': lastStudent,
-      'answerKeyAvailable': answerKeyAvailable,
     };
   }
 
@@ -66,7 +57,9 @@ class HomeScreen extends StatelessWidget {
                 future: fetchDashboardStats(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Expanded(child: Center(child: CircularProgressIndicator()));
+                    return const Expanded(
+                      child: Center(child: CircularProgressIndicator()),
+                    );
                   }
 
                   if (snapshot.hasError) {
@@ -77,9 +70,11 @@ class HomeScreen extends StatelessWidget {
                   return Expanded(
                     child: ListView(
                       children: [
-                        _buildStatCard("Total Submissions", stats['submissions'].toString()),
+                        _buildStatCard(
+                          "Total Submissions",
+                          stats['submissions'].toString(),
+                        ),
                         _buildStatCard("Average Score", "${stats['average']}%"),
-                        _buildStatCard("Answer Key Available", stats['answerKeyAvailable'] ? "Yes" : "No"),
                       ],
                     ),
                   );

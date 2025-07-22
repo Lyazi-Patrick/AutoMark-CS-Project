@@ -10,7 +10,7 @@ import 'providers/answer_provider.dart';
 import 'providers/result_provider.dart';
 
 import 'screens/home_screen.dart';
-import 'screens/upload_script_screen.dart';
+
 import 'screens/answer_key_screen.dart';
 import 'screens/result_screen.dart';
 import 'screens/signup_screen.dart';
@@ -18,16 +18,14 @@ import 'screens/login_screen.dart';
 import 'screens/scan_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/profile_screen.dart';
-import 'screens/unmarked_scripts.dart';
 import 'screens/mark_script_screen.dart';
 import 'screens/marked_scripts.dart';
+import 'screens/downloads_screen.dart'; // NEW: Downloads screen import
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   runApp(const AutoMarkApp());
 }
@@ -45,24 +43,26 @@ class AutoMarkApp extends StatelessWidget {
       child: MaterialApp(
         title: 'AutoMark',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          primarySwatch: Colors.green,
-          useMaterial3: true,
-        ),
+        theme: ThemeData(primarySwatch: Colors.green),
         home: const AuthWrapper(), //  dynamic entry point
         routes: {
           '/login': (context) => const LoginScreen(),
           '/signup': (context) => const SignUpScreen(),
           '/home': (context) => const AuthGuard(child: HomeScreen()),
-          '/upload': (context) => const AuthGuard(child: UploadScriptScreen()),
-          '/answer_key': (context) => const AuthGuard(child:AnswerKeyScreen()),
-          '/result': (context) => const AuthGuard(child:ResultScreen()),
-          '/scan': (context) => const AuthGuard(child: ScanScreen()),
+          '/answer_key': (context) => const AuthGuard(child: AnswerKeyScreen()),
+          '/result': (context) => const AuthGuard(child: ResultScreen()),
+          '/scan': (context) => const AuthGuard(child: UploadScriptScreen()),
           '/settings': (context) => const AuthGuard(child: SettingsScreen()),
           '/profile': (context) => const AuthGuard(child: ProfileScreen()),
-          '/unmarked':(context) => const AuthGuard(child: UnmarkedScriptsScreen()),
+          '/unmarked':
+              (context) => const AuthGuard(child: UnmarkedScriptsScreen()),
           '/mark_script': (context) => AuthGuard(child: MarkScriptScreen()),
-          '/marked_scripts': (context) => AuthGuard(child: MarkedScriptsScreen()),
+          '/marked_scripts':
+              (context) => AuthGuard(child: MarkedScriptsScreen()),
+          '/downloads':
+              (context) => const AuthGuard(
+                child: DownloadsScreen(),
+              ), // NEW: Downloads route
         },
       ),
     );

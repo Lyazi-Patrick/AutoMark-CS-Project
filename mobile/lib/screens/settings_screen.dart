@@ -28,18 +28,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       showDialog(
         context: context,
-        builder: (_) => AlertDialog(
-          title: const Text("Reset Email Sent"),
-          content: Text("We sent a password reset link to:\n$email"),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK"))
-          ],
-        ),
+        builder:
+            (_) => AlertDialog(
+              title: const Text("Reset Email Sent"),
+              content: Text("We sent a password reset link to:\n$email"),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("OK"),
+                ),
+              ],
+            ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error sending email: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error sending email: $e")));
     }
   }
 
@@ -49,54 +53,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Change Password"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: currentPassController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Current Password'),
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text("Change Password"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: currentPassController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Current Password',
+                  ),
+                ),
+                TextField(
+                  controller: newPassController,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'New Password'),
+                ),
+              ],
             ),
-            TextField(
-              controller: newPassController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'New Password'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                final user = FirebaseAuth.instance.currentUser;
-                final email = user?.email;
-                final currentPass = currentPassController.text.trim();
-                final newPass = newPassController.text.trim();
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  try {
+                    final user = FirebaseAuth.instance.currentUser;
+                    final email = user?.email;
+                    final currentPass = currentPassController.text.trim();
+                    final newPass = newPassController.text.trim();
 
-                if (user == null || email == null) throw "No logged in user.";
-                if (newPass.length < 6) throw "New password must be at least 6 characters.";
+                    if (user == null || email == null)
+                      throw "No logged in user.";
+                    if (newPass.length < 6)
+                      throw "New password must be at least 6 characters.";
 
-                final cred = EmailAuthProvider.credential(email: email, password: currentPass);
-                await user.reauthenticateWithCredential(cred);
-                await user.updatePassword(newPass);
+                    final cred = EmailAuthProvider.credential(
+                      email: email,
+                      password: currentPass,
+                    );
+                    await user.reauthenticateWithCredential(cred);
+                    await user.updatePassword(newPass);
 
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Password updated successfully")),
-                );
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Failed: $e")),
-                );
-              }
-            },
-            child: const Text("Update"),
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Password updated successfully"),
+                      ),
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text("Failed: $e")));
+                  }
+                },
+                child: const Text("Update"),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -107,14 +124,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await user.reload();
 
     if (user.emailVerified) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Email already verified.")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Email already verified.")));
     } else {
       await user.sendEmailVerification();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Verification email sent!")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Verification email sent!")));
     }
 
     setState(() {}); // Refresh
@@ -123,33 +140,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _deleteAccount(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Delete Account"),
-        content: const Text("This will permanently delete your account. Continue?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text("Delete"),
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text("Delete Account"),
+            content: const Text(
+              "This will permanently delete your account. Continue?",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text("Delete"),
+              ),
+            ],
           ),
-        ],
-      ),
     );
 
     if (confirmed == true) {
       try {
         await FirebaseAuth.instance.currentUser?.delete();
         if (context.mounted) {
-          Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Account deleted")),
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/login',
+            (route) => false,
           );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text("Account deleted")));
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to delete account: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Failed to delete account: $e")));
       }
     }
   }
@@ -172,7 +199,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('Account', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'Account',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 10),
 
           ListTile(
@@ -205,12 +235,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
 
           const Divider(height: 30),
-          const Text("Danger Zone", style: TextStyle(fontSize: 18, color: Colors.red)),
+          const Text(
+            "Danger Zone",
+            style: TextStyle(fontSize: 18, color: Colors.red),
+          ),
           const SizedBox(height: 8),
 
           ListTile(
             leading: const Icon(Icons.delete, color: Colors.red),
-            title: const Text("Delete My Account", style: TextStyle(color: Colors.red)),
+            title: const Text(
+              "Delete My Account",
+              style: TextStyle(color: Colors.red),
+            ),
             onTap: () => _deleteAccount(context),
           ),
         ],

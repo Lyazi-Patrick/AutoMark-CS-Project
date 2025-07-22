@@ -6,27 +6,17 @@ import '../widgets/bottom_navbar.dart';
 import '../widgets/custom_drawer.dart';
 
 class AnswerEntry {
-  String type;
+  String question;
   String answer;
-  List<String> keywords;
 
-  AnswerEntry({
-    required this.type,
-    this.answer = '',
-    this.keywords = const [],
-  });
+  AnswerEntry({required this.question, this.answer = ''});
 
-  Map<String, dynamic> toJson() => {
-        'type': type,
-        'answer': answer,
-        'keywords': keywords,
-      };
+  Map<String, dynamic> toJson() => {'question': question, 'answer': answer};
 
   factory AnswerEntry.fromJson(Map<String, dynamic> json) => AnswerEntry(
-        type: json['type'],
-        answer: json['answer'] ?? '',
-        keywords: List<String>.from(json['keywords'] ?? []),
-      );
+    question: json['question'] ?? '',
+    answer: json['answer'] ?? '',
+  );
 }
 
 class AnswerKeyScreen extends StatefulWidget {
@@ -38,36 +28,31 @@ class AnswerKeyScreen extends StatefulWidget {
 
 class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
   final List<AnswerEntry> _entries = [];
+  final TextEditingController _questionController = TextEditingController();
   final TextEditingController _answerController = TextEditingController();
-  final TextEditingController _keywordController = TextEditingController();
 
-  String _selectedType = 'Objective';
-  List<String> _keywords = [];
   bool _isSaving = false;
   bool _isEditing = false;
 
   @override
   void initState() {
     super.initState();
-    _loadDraft();
     _loadFromFirebase();
   }
 
   void _addEntry() {
-    if (_selectedType == 'Objective' && _answerController.text.trim().isEmpty) return;
-    if (_selectedType == 'Keyword' && _keywords.isEmpty) return;
+    if (_questionController.text.trim().isEmpty) return;
+    if (_answerController.text.trim().isEmpty) return;
 
     setState(() {
       _entries.add(
         AnswerEntry(
-          type: _selectedType,
-          answer: _selectedType == 'Objective' ? _answerController.text.trim() : '',
-          keywords: _selectedType == 'Keyword' ? List.from(_keywords) : [],
+          question: _questionController.text.trim(),
+          answer: _answerController.text.trim(),
         ),
       );
+      _questionController.clear();
       _answerController.clear();
-      _keywordController.clear();
-      _keywords.clear();
     });
 
     _saveDraft();
@@ -97,7 +82,11 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
   }
 
   Future<void> _loadFromFirebase() async {
-    final doc = await FirebaseFirestore.instance.collection('answer_key').doc('latest').get();
+    final doc =
+        await FirebaseFirestore.instance
+            .collection('answer_key')
+            .doc('latest')
+            .get();
     if (doc.exists) {
       final data = doc.data();
       if (data != null && data.containsKey('answers')) {
@@ -119,15 +108,21 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     try {
       final jsonList = _entries.map((e) => e.toJson()).toList();
 
-      await FirebaseFirestore.instance.collection('answer_key').doc('latest').set({
-        'answers': jsonList,
-        'timestamp': Timestamp.now(),
-      });
+      await FirebaseFirestore.instance
+          .collection('answer_key')
+          .doc('latest')
+          .set({'answers': jsonList, 'timestamp': Timestamp.now()});
 
       await _clearDraft();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_isEditing ? "Answer key updated!" : "Answer key saved to Firebase!")),
+        SnackBar(
+          content: Text(
+            _isEditing
+                ? "Answer key updated!"
+                : "Answer key saved to Firebase!",
+          ),
+        ),
       );
 
       setState(() {
@@ -137,9 +132,9 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       });
     } catch (e) {
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Save failed: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Save failed: $e")));
     }
   }
 
@@ -149,72 +144,46 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       appBar: AppBar(
         title: Text(_isEditing ? "Edit Answer Key" : "Answer Key"),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.restore),
-            tooltip: "Restore Draft",
-            onPressed: _loadDraft,
-          ),
-        ],
       ),
       drawer: const CustomDrawer(),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            DropdownButtonFormField<String>(
-              value: _selectedType,
-              items: const [
-                DropdownMenuItem(value: 'Objective', child: Text('Objective')),
-                DropdownMenuItem(value: 'Keyword', child: Text('Sentence (Keywords)')),
-              ],
-              onChanged: (value) => setState(() => _selectedType = value!),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: const Text(
+                'This screen is for entering objective type questions only.',
+                style: TextStyle(
+                  color: Colors.blue,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            TextField(
+              controller: _questionController,
               decoration: const InputDecoration(
-                labelText: 'Answer Type',
+                labelText: 'Question',
                 border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
-            if (_selectedType == 'Objective')
-              TextField(
-                controller: _answerController,
-                decoration: const InputDecoration(
-                  labelText: 'Correct Answer (e.g., A)',
-                  border: OutlineInputBorder(),
-                ),
-              )
-            else ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _keywordController,
-                      decoration: const InputDecoration(
-                        labelText: 'Keyword',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () {
-                      if (_keywordController.text.trim().isNotEmpty) {
-                        setState(() {
-                          _keywords.add(_keywordController.text.trim());
-                          _keywordController.clear();
-                        });
-                        _saveDraft();
-                      }
-                    },
-                    child: const Text("Add"),
-                  ),
-                ],
+            TextField(
+              controller: _answerController,
+              decoration: const InputDecoration(
+                labelText: 'Correct Answer',
+                border: OutlineInputBorder(),
               ),
-              Wrap(
-                spacing: 6,
-                children: _keywords.map((e) => Chip(label: Text(e))).toList(),
-              ),
-            ],
+            ),
             const SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: _addEntry,
@@ -225,43 +194,63 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text("Preview:", style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text(
+                  "Preview:",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 Text("Total: ${_entries.length} question(s)"),
               ],
             ),
             const SizedBox(height: 10),
             Expanded(
-              child: _entries.isEmpty
-                  ? const Center(child: Text("No questions added."))
-                  : ListView.builder(
-                      itemCount: _entries.length,
-                      itemBuilder: (context, index) {
-                        final entry = _entries[index];
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 4),
-                          child: ListTile(
-                            leading: CircleAvatar(child: Text("Q${index + 1}")),
-                            title: entry.type == 'Objective'
-                                ? Text("Objective: ${entry.answer}")
-                                : Text("Keywords: ${entry.keywords.join(', ')}"),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () {
-                                setState(() => _entries.removeAt(index));
-                                _saveDraft();
-                              },
+              child:
+                  _entries.isEmpty
+                      ? const Center(child: Text("No questions added."))
+                      : ListView.builder(
+                        itemCount: _entries.length,
+                        itemBuilder: (context, index) {
+                          final entry = _entries[index];
+                          return Card(
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                child: Text("Q${index + 1}"),
+                              ),
+                              title: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text("Question: ${entry.question}"),
+                                  Text("Answer: ${entry.answer}"),
+                                ],
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
+                                ),
+                                onPressed: () {
+                                  setState(() => _entries.removeAt(index));
+                                  _saveDraft();
+                                },
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
+                          );
+                        },
+                      ),
             ),
             ElevatedButton(
               onPressed: _isSaving ? null : _saveToFirebase,
-              style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
-              child: _isSaving
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : Text(_isEditing ? "Update Answer Key" : "Save All to Firebase"),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size.fromHeight(50),
+              ),
+              child:
+                  _isSaving
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Text(
+                        _isEditing
+                            ? "Update Answer Key"
+                            : "Save All to Firebase",
+                      ),
             ),
           ],
         ),

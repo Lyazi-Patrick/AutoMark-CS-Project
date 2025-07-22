@@ -6,11 +6,12 @@ class UnmarkedScriptsScreen extends StatelessWidget {
   const UnmarkedScriptsScreen({super.key});
 
   Future<List<Map<String, dynamic>>> fetchUnmarkedScripts() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('scripts')
-        .where('status', isEqualTo: 'unmarked')
-        .orderBy('timestamp', descending: true)
-        .get();
+    final snapshot =
+        await FirebaseFirestore.instance
+            .collection('scripts')
+            .where('status', isEqualTo: 'unmarked')
+            .orderBy('timestamp', descending: true)
+            .get();
 
     return snapshot.docs.map((doc) {
       final data = doc.data();
@@ -18,6 +19,22 @@ class UnmarkedScriptsScreen extends StatelessWidget {
       return data;
     }).toList();
   }
+
+  Stream<List<Map<String, dynamic>>> streamUnmarkedScripts() {
+    return FirebaseFirestore.instance
+        .collection('scripts')
+        .where('status', isEqualTo: 'unmarked')
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map(
+          (snapshot) =>
+              snapshot.docs.map((doc) {
+                final data = doc.data();
+                data['id'] = doc.id;
+                return data;
+              }).toList(),
+        );
+  } // NEW: Stream for real-time updates
 
   String formatTimestamp(Timestamp? timestamp) {
     if (timestamp == null) return 'Unknown';
@@ -27,21 +44,31 @@ class UnmarkedScriptsScreen extends StatelessWidget {
   Future<void> deleteScript(BuildContext context, String docId) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Delete Script"),
-        content: const Text("Are you sure you want to delete this script?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("Delete")),
-        ],
-      ),
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text("Delete Script"),
+            content: const Text("Are you sure you want to delete this script?"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text("Delete"),
+              ),
+            ],
+          ),
     );
 
     if (confirmed == true) {
-      await FirebaseFirestore.instance.collection('scripts').doc(docId).delete();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Script deleted.")),
-      );
+      await FirebaseFirestore.instance
+          .collection('scripts')
+          .doc(docId)
+          .delete();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Script deleted.")));
     }
   }
 
@@ -51,16 +78,21 @@ class UnmarkedScriptsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text("Unmarked Scripts"),
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: fetchUnmarkedScripts(),
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        // NEW: Use StreamBuilder
+        stream: streamUnmarkedScripts(), // NEW
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
           if (snapshot.hasError) {
-            return Center(child: Text("Error: ${snapshot.error}"));
+            return Center(child: Text("Error:  [36m${snapshot.error} [0m"));
           }
 
           final scripts = snapshot.data ?? [];
@@ -79,42 +111,66 @@ class UnmarkedScriptsScreen extends StatelessWidget {
 
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: ListTile(
-                  leading: const Icon(Icons.description_outlined, color: Colors.grey),
-                  title: Text(script['name'] ?? 'Unnamed Student'),
-                  subtitle: Column(
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.description_outlined,
+                            color: Colors.grey,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              script['name'] ?? 'Unnamed Student',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
                       Text(
-                        ocrPreview.length > 100 ? '${ocrPreview.substring(0, 100)}...' : ocrPreview,
+                        ocrPreview.length > 100
+                            ? '${ocrPreview.substring(0, 100)}...'
+                            : ocrPreview,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 6),
                       Text(
                         "Uploaded: ${formatTimestamp(timestamp)}",
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
                       ),
-                    ],
-                  ),
-                  trailing: Column(
-                    children: [
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.edit, size: 16),
-                        label: const Text("Mark"),
-                        onPressed: () {
-                          Navigator.pushNamed(
-                            context,
-                            '/mark_script',
-                            arguments: script,
-                          );
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        tooltip: "Delete script",
-                        onPressed: () => deleteScript(context, docId),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.edit, size: 16),
+                            label: const Text("Mark"),
+                            onPressed: () {
+                              Navigator.pushNamed(
+                                context,
+                                '/mark_script',
+                                arguments: script,
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          Spacer(),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            tooltip: "Delete script",
+                            onPressed: () => deleteScript(context, docId),
+                          ),
+                        ],
                       ),
                     ],
                   ),

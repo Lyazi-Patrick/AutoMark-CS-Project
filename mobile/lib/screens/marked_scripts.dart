@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../widgets/bottom_navbar.dart';
 import '../widgets/custom_drawer.dart';
+import 'script_details_screen.dart'; // NEW: For script details
 
 class MarkedScriptsScreen extends StatelessWidget {
   const MarkedScriptsScreen({super.key});
@@ -23,21 +24,33 @@ class MarkedScriptsScreen extends StatelessWidget {
   Future<void> _deleteScript(BuildContext context, String docId) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Delete Script"),
-        content: const Text("Are you sure you want to delete this marked script?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("Delete")),
-        ],
-      ),
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text("Delete Script"),
+            content: const Text(
+              "Are you sure you want to delete this marked script?",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text("Delete"),
+              ),
+            ],
+          ),
     );
 
     if (confirmed == true) {
-      await FirebaseFirestore.instance.collection('scripts').doc(docId).delete();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Script deleted.")),
-      );
+      await FirebaseFirestore.instance
+          .collection('scripts')
+          .doc(docId)
+          .delete();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Script deleted.")));
     }
   }
 
@@ -47,6 +60,10 @@ class MarkedScriptsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text("Marked Scripts"),
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       drawer: const CustomDrawer(),
       body: StreamBuilder<QuerySnapshot>(
@@ -58,7 +75,10 @@ class MarkedScriptsScreen extends StatelessWidget {
 
           if (snapshot.hasError) {
             return Center(
-              child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.red)),
+              child: Text(
+                "Error: ${snapshot.error}",
+                style: const TextStyle(color: Colors.red),
+              ),
             );
           }
 
@@ -86,13 +106,19 @@ class MarkedScriptsScreen extends StatelessWidget {
                 elevation: 2,
                 child: ListTile(
                   leading: const Icon(Icons.check_circle, color: Colors.green),
-                  title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  title: Text(
+                    name,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text("Score: $score / $total"),
                       Text("Method: ${method.toString().toUpperCase()}"),
-                      Text("Marked: ${formatTimestamp(timestamp)}", style: const TextStyle(fontSize: 12)),
+                      Text(
+                        "Marked: ${formatTimestamp(timestamp)}",
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ],
                   ),
                   trailing: IconButton(
@@ -100,13 +126,20 @@ class MarkedScriptsScreen extends StatelessWidget {
                     onPressed: () => _deleteScript(context, doc.id),
                     tooltip: "Delete",
                   ),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ScriptDetailsScreen(script: data),
+                      ),
+                    );
+                  },
                 ),
               );
             },
           );
         },
       ),
-      bottomNavigationBar: const AutoMarkBottomNav(currentIndex: 3),
     );
   }
 }
