@@ -3,11 +3,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/ocr_service.dart';
+import '../services/pdf_service.dart';
 import '../providers/dashboard_provider.dart';
 import '../widgets/bottom_navbar.dart';
 import '../widgets/custom_drawer.dart';
@@ -50,7 +52,9 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
   final List<TextEditingController> _marksControllers = [];
 
   final TextEditingController _guideNameController = TextEditingController();
+  final TextEditingController _directTextController = TextEditingController();
   bool _isSaving = false;
+  bool _showDirectTextInput = false;
 
   // Track the currently selected guide ID
   String? _selectedGuideId;
@@ -59,6 +63,12 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
   void initState() {
     super.initState();
     _loadSelectedGuideId();
+  }
+
+  @override
+  void dispose() {
+    _directTextController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadSelectedGuideId() async {
@@ -100,6 +110,53 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
         SnackBar(content: Text("OCR error: $e")),
       );
     }
+  }
+
+  Future<void> _pickAndProcessPdf() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (result != null) {
+        File file = File(result.files.single.path!);
+        String text = await PDFService().extractTextFromPdf(file);
+
+        _parseScannedAnswerKey(text);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ PDF processed. Edit before saving.")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("PDF processing error: $e")),
+      );
+    }
+  }
+
+  void _toggleDirectTextInput() {
+    setState(() {
+      _showDirectTextInput = !_showDirectTextInput;
+      if (!_showDirectTextInput) {
+        _directTextController.clear();
+      }
+    });
+  }
+
+  void _processDirectTextInput() {
+    if (_directTextController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter some text to process")),
+      );
+      return;
+    }
+
+    _parseScannedAnswerKey(_directTextController.text);
+    setState(() {
+      _showDirectTextInput = false;
+      _directTextController.clear();
+    });
   }
 
   void _parseScannedAnswerKey(String rawText) {
@@ -219,9 +276,6 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     setState(() {
       _selectedGuideId = guideId;
     });
-
-    // Optionally, pop the screen if you want to return after selection
-    // Navigator.pop(context);
   }
 
   Future<void> _loadGuideForEditing(DocumentSnapshot doc) async {
@@ -350,6 +404,26 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
             ),
             const SizedBox(height: 16),
+            
+            // New PDF and Direct Text buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.picture_as_pdf),
+                  label: const Text("PDF"),
+                  onPressed: _pickAndProcessPdf,
+                ),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.text_fields),
+                  label: const Text("Direct Text"),
+                  onPressed: _toggleDirectTextInput,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            
+            // Camera and Gallery buttons
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -365,6 +439,39 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
                 ),
               ],
             ),
+            
+            // Direct Text Input Field
+            if (_showDirectTextInput) ...[
+              const SizedBox(height: 16),
+              TextField(
+                controller: _directTextController,
+                maxLines: 5,
+                decoration: InputDecoration(
+                  labelText: 'Paste answer key text',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.check),
+                    onPressed: _processDirectTextInput,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: _toggleDirectTextInput,
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: _processDirectTextInput,
+                    child: const Text('Process Text'),
+                  ),
+                ],
+              ),
+            ],
+            
             const SizedBox(height: 24),
             if (_entries.isNotEmpty) ...[
               const Text("Edit Scanned Questions", style: TextStyle(fontWeight: FontWeight.bold)),
