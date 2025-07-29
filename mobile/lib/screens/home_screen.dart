@@ -42,7 +42,8 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     } else {
       setState(() {
-        displayName = user.email;
+        displayName = user.displayName ?? user.email;
+        isPremium = false;
         isLoadingUser = false;
       });
     }
