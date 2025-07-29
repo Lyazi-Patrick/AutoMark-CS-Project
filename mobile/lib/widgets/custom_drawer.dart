@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 
 class CustomDrawer extends StatelessWidget {
   const CustomDrawer({super.key});
@@ -71,16 +73,38 @@ class CustomDrawer extends StatelessWidget {
               leading: const Icon(Icons.info),
               title: const Text("About"),
               onTap: () {
-                showAboutDialog(
+               showAboutDialog(
                   context: context,
                   applicationName: 'AutoMark',
                   applicationVersion: 'v1.0.0',
-                  applicationIcon:
-                      Image.asset('assets/icons/bluetick.png', height: 40),
-                  children: const [
-                    Text("AutoMark automatically grades scanned exam scripts."),
-                    SizedBox(height: 10),
-                    Text("Developed by Group 27 - CS Project 2025"),
+                  applicationIcon: Image.asset('assets/icons/bluetick.png', height: 40),
+                  applicationLegalese: '© 2025 Group 27 - Makerere University',
+                  children: [
+                    const SizedBox(height: 10),
+                    const Text("AutoMark is an AI-powered app that helps lecturers quickly and accurately grade scanned exam scripts."),
+                    const SizedBox(height: 10),
+                    const Text("Developed by Group 27 as part of the Computer Science  Project."),
+                    const SizedBox(height: 10),
+                    GestureDetector(
+                      onTap: () async {
+                        final url = Uri.parse('https://automarking.netlify.app/');
+                        if (!await launchUrl(
+                          url,
+                          mode: LaunchMode.externalApplication,
+                        )) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Could not launch the website")),
+                          );
+                        }
+                      },
+                      child: const Text(
+                        'Visit our website',
+                        style: TextStyle(
+                          color: Colors.blue,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
                   ],
                 );
               },
