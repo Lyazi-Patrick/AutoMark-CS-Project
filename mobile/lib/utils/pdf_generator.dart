@@ -5,6 +5,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 
 class PDFGenerator {
   static Future<void> generateAndPrintReport(List<QueryDocumentSnapshot> docs) async {
@@ -77,11 +79,16 @@ class PDFGenerator {
     final file = File(filePath);
     await file.writeAsBytes(await pdf.save());
 
+    //Get current user before saving metadata
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) throw Exception('No logged-in user.');
+
     // Save metadata to Firestore "downloads" collection
     await FirebaseFirestore.instance.collection('downloads').add({
       'title': fileName,
       'filePath': filePath,
       'timestamp': Timestamp.now(),
+      'userId': currentUser.uid,
     });
   }
 }
