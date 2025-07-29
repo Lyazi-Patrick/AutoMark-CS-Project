@@ -26,11 +26,39 @@ class _UnmarkedScriptsScreenState extends State<UnmarkedScriptsScreen> {
   List<dynamic> _selectedGuideAnswers = [];
   String? _selectedGuideTitle;
 
+  // --- SEARCH BAR ---
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
     _loadSelectedGuide();
     _fetchScripts(initialLoad: true);
+
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text.trim().toLowerCase();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> get _filteredScripts {
+    if (_searchQuery.isEmpty) {
+      return _scripts;
+    } else {
+      return _scripts.where((script) {
+        final name = (script['name'] ?? '').toString().toLowerCase();
+        final studentNumber = (script['studentNumber'] ?? '').toString().toLowerCase();
+        return name.contains(_searchQuery) || studentNumber.contains(_searchQuery);
+      }).toList();
+    }
   }
 
   Future<void> _loadSelectedGuide() async {
@@ -100,21 +128,21 @@ class _UnmarkedScriptsScreenState extends State<UnmarkedScriptsScreen> {
     if (snapshot.docs.isNotEmpty) {
       setState(() {
         _scripts.addAll(snapshot.docs
-            .map((doc) {
-              final data = doc.data() as Map<String, dynamic>?;
-              if (data == null) return null;
+          .map((doc) {
+            final data = doc.data() as Map<String, dynamic>?;
+            if (data == null) return null;
 
-              return {
-                'id': doc.id,
-                'name': data['name'] ?? 'Unnamed Student',
-                'ocrText': data['ocrText'] ?? '',
-                'timestamp': data['timestamp'],
-              };
-            })
-            .where((e) => e != null)
-            .cast<Map<String, dynamic>>()
-            .toList());
-
+            return {
+              'id': doc.id,
+              'name': data['name'] ?? 'Unnamed Student',
+              'studentNumber': data['studentNumber'] ?? '',
+              'ocrText': data['ocrText'] ?? '',
+              'timestamp': data['timestamp'],
+            };
+          })
+          .where((e) => e != null)
+          .cast<Map<String, dynamic>>()
+          .toList());
         _lastDocument = snapshot.docs.last;
         _hasMore = snapshot.docs.length == _limit;
       });
@@ -264,6 +292,8 @@ class _UnmarkedScriptsScreenState extends State<UnmarkedScriptsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final filteredScripts = _filteredScripts;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Unmarked Scripts"),
@@ -280,56 +310,70 @@ class _UnmarkedScriptsScreenState extends State<UnmarkedScriptsScreen> {
         onRefresh: () => _fetchScripts(initialLoad: true),
         child: ListView.builder(
           physics: const AlwaysScrollableScrollPhysics(),
-          itemCount: _scripts.length + 2,
+          itemCount: filteredScripts.length + 3, // guide + search + load more
           itemBuilder: (context, index) {
             if (index == 0) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_selectedGuideTitle != null)
-                    Container(
-                      color: Colors.green.shade50,
-                      padding: const EdgeInsets.all(12),
-                      margin: const EdgeInsets.all(8),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.check_circle, color: Colors.green),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              "Using: $_selectedGuideTitle",
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: _changeGuide,
-                            child: const Text("Change Guide"),
-                          ),
-                        ],
+              // Marking Guide info
+              if (_selectedGuideTitle != null) {
+                return Container(
+                  color: Colors.green.shade50,
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.all(8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: Colors.green),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Using: $_selectedGuideTitle",
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
                       ),
-                    )
-                  else
-                    Container(
-                      color: Colors.amber.shade100,
-                      padding: const EdgeInsets.all(12),
-                      margin: const EdgeInsets.all(8),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.warning, color: Colors.orange),
-                          const SizedBox(width: 8),
-                          const Expanded(child: Text("No marking guide selected.")),
-                          TextButton(
-                            onPressed: _changeGuide,
-                            child: const Text("Select Guide"),
-                          ),
-                        ],
+                      TextButton(
+                        onPressed: _changeGuide,
+                        child: const Text("Change Guide"),
                       ),
-                    ),
-                ],
+                    ],
+                  ),
+                );
+              } else {
+                return Container(
+                  color: Colors.amber.shade100,
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.all(8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning, color: Colors.orange),
+                      const SizedBox(width: 8),
+                      const Expanded(child: Text("No marking guide selected.")),
+                      TextButton(
+                        onPressed: _changeGuide,
+                        child: const Text("Select Guide"),
+                      ),
+                    ],
+                  ),
+                );
+              }
+            }
+
+            if (index == 1) {
+              // Search bar
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.search),
+                    hintText: 'Search by student name or number',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    isDense: true,
+                  ),
+                ),
               );
             }
 
-            if (index == _scripts.length + 1) {
+            if (index == filteredScripts.length + 2) {
+              // Load more button or empty space
               if (_hasMore) {
                 return Center(
                   child: Padding(
@@ -347,7 +391,7 @@ class _UnmarkedScriptsScreenState extends State<UnmarkedScriptsScreen> {
               }
             }
 
-            final script = _scripts[index - 1];
+            final script = filteredScripts[index - 2];
             final preview = script['ocrText'] ?? '';
             final timestamp = script['timestamp'] as Timestamp?;
 
@@ -360,11 +404,13 @@ class _UnmarkedScriptsScreenState extends State<UnmarkedScriptsScreen> {
                     child: Column(
                       children: [
                         ListTile(
-                          leading: const Icon(Icons.description_outlined, color: Colors.grey),
+                          leading: const Icon(Icons.description_outlined, color: Color.fromRGBO(158, 158, 158, 1)),
                           title: Text(script['name'] ?? 'Student'),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              if ((script['studentNumber'] ?? '').isNotEmpty)
+                                Text("Student No: ${script['studentNumber']}", style: const TextStyle(fontSize: 13)),
                               const SizedBox(height: 6),
                               Text(
                                 preview.length > 100 ? '${preview.substring(0, 100)}...' : preview,
