@@ -41,86 +41,139 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
     return answers;
   }
 
-  Future<void> _autoMark(List<Map<String, dynamic>> guideAnswers) async {
-    setState(() => _isLoading = true);
+   Future<void> _autoMark(List<Map<String, dynamic>> guideAnswers) async {
+  setState(() => _isLoading = true);
 
-    try {
-      final ocrText = widget.script['ocrText'] ?? '';
-      if (ocrText.trim().isEmpty) {
-        _showSnackBar("OCR text is empty. Cannot mark.", isError: true);
-        return;
-      }
+  try {
+    final ocrText = widget.script['ocrText'] ?? '';
+    if (ocrText.trim().isEmpty) {
+      _showSnackBar("OCR text is empty. Cannot mark.", isError: true);
+      return;
+    }
 
-      final parsedAnswers = parseAnswers(ocrText);
-      int score = 0;
+    final parsedAnswers = parseAnswers(ocrText);
+    int score = 0;
 
-      for (var guide in guideAnswers) {
-        final modelAnswer = guide['modelAnswer'];
+    for (var guide in guideAnswers) {
+      if (guide.containsKey('question') && guide.containsKey('modelAnswer')) {
+        final modelAnswer = guide['modelAnswer'] as String;
         final studentAnswer = parsedAnswers[guide['question']] ?? '';
         if (studentAnswer.toLowerCase().trim() == modelAnswer.toLowerCase().trim()) {
           score += guide['marks'] as int;
         }
+      } else if (guide.containsKey('rawText')) {
+        // Fallback: check if rawText is present in OCR text
+        final rawText = guide['rawText'] as String;
+        if (ocrText.toLowerCase().contains(rawText.toLowerCase())) {
+          score += guide['marks'] as int? ?? 0;
+        }
       }
-
-      setState(() {
-        _score = score;
-        _total = guideAnswers.fold<int>(0, (sum, q) => sum + (q['marks'] as int));
-        _feedback = "Auto-marked using exact matches.";
-      });
-
-      await _saveResult(score, _total!, method: 'auto');
-    } catch (e) {
-      _showSnackBar("Auto-marking failed: $e", isError: true);
-    } finally {
-      setState(() => _isLoading = false);
     }
+
+    setState(() {
+      _score = score;
+      _total = guideAnswers.fold<int>(0, (sum, q) => sum + (q['marks'] as int));
+      _feedback = "Auto-marked using exact matches and raw text fallback.";
+    });
+
+    await _saveResult(score, _total!, method: 'auto');
+  } catch (e) {
+    _showSnackBar("Auto-marking failed: $e", isError: true);
+  } finally {
+    setState(() => _isLoading = false);
   }
+}
 
   Future<void> _aiMark(List<Map<String, dynamic>> guideAnswers) async {
-    setState(() => _isLoading = true);
+  setState(() => _isLoading = true);
 
-    try {
-      final ocrText = widget.script['ocrText'] ?? '';
-      if (ocrText.trim().isEmpty) {
-        _showSnackBar("OCR text is empty. Cannot mark.", isError: true);
-        return;
-      }
-
-      final ai = AIService();
-      final studentAnswers = parseAnswers(ocrText);
-
-      final answerKey = guideAnswers.map((e) => {
-            "question": e['question'],
-            "modelAnswer": e['modelAnswer'],
-            "marks": e['marks'],
-          }).toList();
-
-      final result = await ai.gradeScript(
-        answerKey: answerKey,
-        studentAnswers: studentAnswers,
-        useGroq: true,
-      );
-
-      setState(() {
-        _score = result['totalScore'];
-        _total = result['totalPossible'];
-        _feedback = result['feedback'];
-      });
-
-      await _saveResult(
-        _score!,
-        _total!,
-        method: 'ai-hybrid',
-        feedback: _feedback,
-        details: result['details'],
-      );
-    } catch (e) {
-      _showSnackBar("AI Hybrid marking failed: $e", isError: true);
-      await _autoMark(guideAnswers);
-    } finally {
-      setState(() => _isLoading = false);
+  try {
+    final ocrText = widget.script['ocrText'] ?? '';
+    if (ocrText.trim().isEmpty) {
+      _showSnackBar("OCR text is empty. Cannot mark.", isError: true);
+      return;
     }
+
+    final ai = AIService();
+    final studentAnswers = parseAnswers(ocrText);
+
+    // Separate structured and raw entries
+    final structuredAnswers = guideAnswers
+        .where((e) => e.containsKey('question') && e.containsKey('modelAnswer'))
+        .map((e) => {
+              "question": e['question'],
+              "modelAnswer": e['modelAnswer'],
+              "marks": e['marks'],
+            })
+        .toList();
+
+    final rawEntries = guideAnswers.where((e) => e.containsKey('rawText')).toList();
+
+    // Grade structured answers via AI
+    final result = await ai.gradeScript(
+      answerKey: structuredAnswers,
+      studentAnswers: studentAnswers,
+      useGroq: true,
+    );
+
+    // Now handle rawEntries by checking presence in OCR text and awarding marks locally
+    int rawScore = 0;
+    int rawTotal = 0;
+    List<Map<String, dynamic>> rawDetails = [];
+
+    final ocrTextLower = ocrText.toLowerCase();
+
+    for (var rawEntry in rawEntries) {
+      final rawText = (rawEntry['rawText'] ?? '').toLowerCase();
+      final marks = (rawEntry['marks'] as int?) ?? 1;
+      rawTotal += marks;
+
+      final found = ocrTextLower.contains(rawText);
+      final awardedMarks = found ? marks : 0;
+      rawScore += awardedMarks;
+
+      rawDetails.add({
+        "question": null,
+        "modelAnswer": null,
+        "studentAnswer": found ? rawText : "",
+        "allocatedMarks": marks,
+        "score": awardedMarks,
+        "feedback": found ? "Raw text matched in student answers." : "Raw text not found.",
+      });
+    }
+
+    // Combine structured AI scores with raw text fallback scores
+    final combinedScore = (result['totalScore'] as int) + rawScore;
+    final combinedTotal = (result['totalPossible'] as int) + rawTotal;
+
+    // Combine feedback messages
+    final combinedFeedback = (result['feedback'] ?? '') +
+        "\n\nRaw Text Fallback Score: $rawScore / $rawTotal";
+
+    // Combine details for reporting
+    final combinedDetails = List<Map<String, dynamic>>.from(result['details'] ?? [])
+      ..addAll(rawDetails);
+
+    setState(() {
+      _score = combinedScore;
+      _total = combinedTotal;
+      _feedback = combinedFeedback;
+    });
+
+    await _saveResult(
+      _score!,
+      _total!,
+      method: 'ai-hybrid',
+      feedback: _feedback,
+      details: combinedDetails,
+    );
+  } catch (e) {
+    _showSnackBar("AI Hybrid marking failed: $e", isError: true);
+    await _autoMark(guideAnswers);
+  } finally {
+    setState(() => _isLoading = false);
   }
+}
 
   Future<void> _saveManualScore() async {
     final score = int.tryParse(_manualController.text.trim());
@@ -168,7 +221,7 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
       'total': total ?? 0,
       'percentage': percentage,
       'method': method,
-      'feedback': feedback,
+      'feedback': feedback ?? '',
       'details': details,
       'timestamp': Timestamp.now(),
     });
