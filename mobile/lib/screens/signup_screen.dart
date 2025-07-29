@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -25,17 +27,28 @@ class _SignUpScreenState extends State<SignUpScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
+  UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+    email: _emailController.text.trim(),
+    password: _passwordController.text.trim(),
+  );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Account created successfully!")),
-      );
+  // Update Firebase Auth displayName
+  await userCredential.user?.updateDisplayName(_nameController.text.trim());
+  await userCredential.user?.reload();
 
-      Navigator.pushReplacementNamed(context, '/login');
-    } on FirebaseAuthException catch (e) {
+  // Create Firestore user document
+  await FirebaseFirestore.instance.collection('users').doc(userCredential.user?.uid).set({
+    'name': _nameController.text.trim(),
+    'email': _emailController.text.trim(),
+    'isPremium': false, // default value or other fields as needed
+  });
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text("Account created successfully!")),
+  );
+
+  Navigator.pushReplacementNamed(context, '/login');
+} on FirebaseAuthException catch (e)  {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Sign up failed: ${e.message}")),
       );
