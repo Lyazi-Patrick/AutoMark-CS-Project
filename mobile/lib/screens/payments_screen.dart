@@ -16,22 +16,26 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
 
 void _startPaymentProcess() async {
   try {
+    final subscriptionKey = dotenv.env['SUBSCRIPTION_KEY'];
+    if (subscriptionKey == null) {
+      throw Exception('Missing SUBSCRIPTION_KEY in .env');
+    }
+
     final tokenManager = TokenManager();
     final momoService = MomoService(
       tokenManager: tokenManager,
-      subscriptionKey: dotenv.env['SUBSCRIPTION_KEY']!,
+      subscriptionKey: subscriptionKey,
     );
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Starting payment...")),
     );
 
-    // Use real values here or UI inputs:
     final transactionId = await momoService.requestToPay(
-      amount: '1000', // e.g. UGX 1000
-      currency: 'EUR', // Sandbox uses EUR, check if you can switch to UGX in production
-      externalId: '123456', // Your internal transaction ID
-      payerNumber: '46733123454', // The payer’s MTN MoMo phone number
+      amount: '1000',
+      currency: 'EUR', // Use UGX in production only
+      externalId: '123456',
+      payerNumber: '256753123456', // Format: country code + number
       payerMessage: 'Thanks for upgrading!',
       payeeNote: 'Payment for premium plan',
     );
