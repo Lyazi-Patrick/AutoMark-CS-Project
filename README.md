@@ -32,9 +32,8 @@ Visit our project website for:
 *  **GitHub Repository Link**
 *  **APK Download ***
 
-**Hosted on GitHub Pages:**
- [AutoMark Project Website](https://Lyazi-Patrick.github.io/AutoMark-CS-Project/website/)
-
+**Hosted on netlify:**
+ [AutoMark Project Website](https://automark1.netlify.app/)
 
 ## Technologies Used
 Flutter(Dart) - Cross platform mobile app development
