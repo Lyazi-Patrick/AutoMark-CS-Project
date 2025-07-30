@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'forgotpasswordscreen.dart'; // Make sure the file name is correct
+import 'forgotpasswordscreen.dart'; // Make sure the file name is very correct
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -28,15 +28,15 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text.trim(),
       );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Login successful!")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Login successful!")));
 
       Navigator.pushReplacementNamed(context, '/home');
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Login failed: ${e.message}")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Login failed: ${e.message}")));
     } finally {
       setState(() => _isLoading = false);
     }
@@ -68,7 +68,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(width: 10),
                     const Text(
                       'AUTOMARK',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -92,8 +95,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     prefixIcon: Icon(Icons.email),
                     border: OutlineInputBorder(),
                   ),
-                  validator: (value) =>
-                      value == null || !value.contains('@') ? 'Enter a valid email' : null,
+                  validator:
+                      (value) =>
+                          value == null || !value.contains('@')
+                              ? 'Enter a valid email'
+                              : null,
                 ),
                 const SizedBox(height: 15),
 
@@ -114,8 +120,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       },
                     ),
                   ),
-                  validator: (value) =>
-                      value == null || value.length < 6 ? 'Enter at least 6 characters' : null,
+                  validator:
+                      (value) =>
+                          value == null || value.length < 6
+                              ? 'Enter at least 6 characters'
+                              : null,
                 ),
 
                 const SizedBox(height: 10),
@@ -143,9 +152,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _loginUser,
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text("Login"),
+                    child:
+                        _isLoading
+                            ? const CircularProgressIndicator(
+                              color: Colors.white,
+                            )
+                            : const Text("Login"),
                   ),
                 ),
 
