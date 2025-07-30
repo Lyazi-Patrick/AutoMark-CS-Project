@@ -44,7 +44,7 @@ class MarkingGuideProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Select guide for marking
+  /// Select a guide for marking in the app
   void setSelectedGuide(MarkingGuide guide) {
     _selectedGuide = guide;
     notifyListeners();
