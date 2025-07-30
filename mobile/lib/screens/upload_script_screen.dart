@@ -8,13 +8,10 @@ import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 
-
-
 import '../services/ai_service.dart';
 import '../widgets/bottom_navbar.dart';
 import '../widgets/custom_drawer.dart';
 import '../screens/mark_script_screen.dart';
-
 
 class UploadScriptScreen extends StatefulWidget {
   const UploadScriptScreen({super.key});
@@ -26,7 +23,8 @@ class UploadScriptScreen extends StatefulWidget {
 class _UploadScriptScreenState extends State<UploadScriptScreen> {
   final List<File> _imageFiles = [];
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _studentNumberController = TextEditingController(); // 
+  final TextEditingController _studentNumberController =
+      TextEditingController(); //
   final ImagePicker _picker = ImagePicker();
 
   String _extractedText = '';
@@ -48,28 +46,34 @@ class _UploadScriptScreenState extends State<UploadScriptScreen> {
       _showSnackBar("Gallery picking failed: $e", isError: true);
     }
   }
+
   Future<File> enhanceImage(File originalImage) async {
     final bytes = await originalImage.readAsBytes();
     img.Image? decoded = img.decodeImage(bytes);
     if (decoded == null) return originalImage;
 
     // Apply enhancement
-    decoded = img.adjustColor(decoded,
+    decoded = img.adjustColor(
+      decoded,
       brightness: 0.15, // Range: -1.0 to 1.0
-      contrast: 0.25    // Range: -1.0 to 1.0
+      contrast: 0.25, // Range: -1.0 to 1.0.
     );
-
 
     final enhancedBytes = Uint8List.fromList(img.encodeJpg(decoded));
     final tempDir = await getTemporaryDirectory();
-    final enhancedFile = File('${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_enhanced.jpg');
+    final enhancedFile = File(
+      '${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_enhanced.jpg',
+    );
     await enhancedFile.writeAsBytes(enhancedBytes);
     return enhancedFile;
   }
 
   Future<void> _pickImagesFromCamera() async {
     try {
-      final pickedFile = await _picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+      final pickedFile = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+      );
       if (pickedFile != null) {
         setState(() {
           _imageFiles.add(File(pickedFile.path));
@@ -83,103 +87,111 @@ class _UploadScriptScreenState extends State<UploadScriptScreen> {
     }
   }
 
- Future<void> _performBatchOCR(List<File> imageFiles) async {
-  final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
-  String fullText = '';
-
-  try {
-    for (final file in imageFiles) {
-      final enhancedImage = await enhanceImage(file); // Enhance before OCR
-      final inputImage = InputImage.fromFile(enhancedImage);
-      final recognizedText = await textRecognizer.processImage(inputImage);
-      fullText += _formatExtractedText(recognizedText) + '\n';
-    }
-    await textRecognizer.close();
-
-    final aiService = AIService();
-    Map<String, String> extractedAnswers = {};
-    String cleanedText = fullText;
+  Future<void> _performBatchOCR(List<File> imageFiles) async {
+    final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+    String fullText = '';
 
     try {
-      // First try AI cleanup + extraction
-      cleanedText = await aiService.cleanOcrText(fullText, useGroq: true);
+      for (final file in imageFiles) {
+        final enhancedImage = await enhanceImage(file); // Enhance before OCR
+        final inputImage = InputImage.fromFile(enhancedImage);
+        final recognizedText = await textRecognizer.processImage(inputImage);
+        fullText += _formatExtractedText(recognizedText) + '\n';
+      }
+      await textRecognizer.close();
 
-      extractedAnswers = await aiService.extractAnswersFromText(cleanedText, useGroq: true);
+      final aiService = AIService();
+      Map<String, String> extractedAnswers = {};
+      String cleanedText = fullText;
 
-      // Check if AI extraction is low quality or incomplete
-      bool isLowQuality = extractedAnswers.isEmpty ||
-          extractedAnswers.values.where((v) => v.trim().split(' ').length >= 5).length < 2;
+      try {
+        // First try AI cleanup + extraction
+        cleanedText = await aiService.cleanOcrText(fullText, useGroq: true);
 
-     if (isLowQuality) {
-      final formattedFallback = _regexpFormatRawText(fullText);
+        extractedAnswers = await aiService.extractAnswersFromText(
+          cleanedText,
+          useGroq: true,
+        );
+
+        // Check if AI extraction is low quality or incomplete
+        bool isLowQuality =
+            extractedAnswers.isEmpty ||
+            extractedAnswers.values
+                    .where((v) => v.trim().split(' ').length >= 5)
+                    .length <
+                2;
+
+        if (isLowQuality) {
+          final formattedFallback = _regexpFormatRawText(fullText);
+          setState(() {
+            _extractedText = formattedFallback;
+            _isLoading = false;
+          });
+          return;
+        }
+      } catch (aiError) {
+        // AI extraction threw an error → fallback
+        _showSnackBar("AI processing failed: $aiError", isError: true);
+        extractedAnswers = {};
+        cleanedText = fullText;
+      }
+
       setState(() {
-        _extractedText = formattedFallback;
+        if (extractedAnswers.isNotEmpty) {
+          // Show structured extracted answers from AI
+          _extractedText = extractedAnswers.entries
+              .map((e) => "${e.key}: ${e.value}")
+              .join('\n');
+        } else {
+          // fallback to cleaned AI text or raw OCR text
+          _extractedText = cleanedText.isNotEmpty ? cleanedText : fullText;
+        }
         _isLoading = false;
       });
-      return;
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnackBar("OCR or AI extraction failed: $e", isError: true);
     }
-    } catch (aiError) {
-      // AI extraction threw an error → fallback
-      _showSnackBar("AI processing failed: $aiError", isError: true);
-      extractedAnswers = {};
-      cleanedText = fullText;
-    }
-
-    setState(() {
-      if (extractedAnswers.isNotEmpty) {
-        // Show structured extracted answers from AI
-        _extractedText = extractedAnswers.entries.map((e) => "${e.key}: ${e.value}").join('\n');
-      } else {
-        // fallback to cleaned AI text or raw OCR text
-        _extractedText = cleanedText.isNotEmpty ? cleanedText : fullText;
-      }
-      _isLoading = false;
-    });
-  } catch (e) {
-    setState(() => _isLoading = false);
-    _showSnackBar("OCR or AI extraction failed: $e", isError: true);
   }
-}
 
   String _regexpFormatRawText(String rawText) {
-  String formatted = rawText;
+    String formatted = rawText;
 
-  // 1. Add extra line breaks before question numbers like "1." or "Q1:"
-  formatted = formatted.replaceAllMapped(
-    RegExp(r'(\n|^)(\s*(Q?\d+[\.\):]))'), 
-    (match) => '\n\n${match.group(2)}'
-  );
+    // 1. Add extra line breaks before question numbers like "1." or "Q1:"
+    formatted = formatted.replaceAllMapped(
+      RegExp(r'(\n|^)(\s*(Q?\d+[\.\):]))'),
+      (match) => '\n\n${match.group(2)}',
+    );
 
-  // 2. Add extra line breaks before bullet points (e.g. '-', '*', '•')
-  formatted = formatted.replaceAllMapped(
-    RegExp(r'(\n|^)(\s*[-*•])'), 
-    (match) => '\n\n${match.group(2)}'
-  );
+    // 2. Add extra line breaks before bullet points (e.g. '-', '*', '•')
+    formatted = formatted.replaceAllMapped(
+      RegExp(r'(\n|^)(\s*[-*•])'),
+      (match) => '\n\n${match.group(2)}',
+    );
 
-  // 3. Fix spacing issues: ensure one space after periods if missing
-  formatted = formatted.replaceAllMapped(
-    RegExp(r'\.(\S)'), 
-    (match) => '. ${match.group(1)}'
-  );
+    // 3. Fix spacing issues: ensure one space after periods if missing
+    formatted = formatted.replaceAllMapped(
+      RegExp(r'\.(\S)'),
+      (match) => '. ${match.group(1)}',
+    );
 
-  // 4. Normalize multiple blank lines to maximum two blank lines
-  formatted = formatted.replaceAll(RegExp(r'\n{3,}'), '\n\n');
+    // 4. Normalize multiple blank lines to maximum two blank lines
+    formatted = formatted.replaceAll(RegExp(r'\n{3,}'), '\n\n');
 
-  // 5. Trim leading and trailing whitespace/newlines
-  return formatted.trim();
-}
+    // 5. Trim leading and trailing whitespace/newlines
+    return formatted.trim();
+  }
 
   String _formatExtractedText(RecognizedText visionText) {
-  final buffer = StringBuffer();
-  for (TextBlock block in visionText.blocks) {
-    for (TextLine line in block.lines) {
-      buffer.writeln(line.text);   // correct method
+    final buffer = StringBuffer();
+    for (TextBlock block in visionText.blocks) {
+      for (TextLine line in block.lines) {
+        buffer.writeln(line.text); // correct method
+      }
+      buffer.writeln(); // correct method for new line
     }
-    buffer.writeln();              // correct method for new line
+    return buffer.toString(); // return the string
   }
-  return buffer.toString();        // return the string
-}
-
 
   Future<void> _saveScript({bool goToMarking = false}) async {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -192,21 +204,26 @@ class _UploadScriptScreenState extends State<UploadScriptScreen> {
     final studentNumber = _studentNumberController.text.trim();
 
     if (name.isEmpty && studentNumber.isEmpty) {
-      _showSnackBar("Please provide either the student name or student number.", isError: true);
+      _showSnackBar(
+        "Please provide either the student name or student number.",
+        isError: true,
+      );
       return;
     }
 
     final String finalName = name.isNotEmpty ? name : 'Unnamed Student';
 
     try {
-      final docRef = await FirebaseFirestore.instance.collection('scripts').add({
-        'name': finalName,
-        'studentNumber': studentNumber,
-        'ocrText': _extractedText,
-        'status': 'unmarked',
-        'timestamp': Timestamp.now(),
-        'userId': currentUser.uid,
-      });
+      final docRef = await FirebaseFirestore.instance
+          .collection('scripts')
+          .add({
+            'name': finalName,
+            'studentNumber': studentNumber,
+            'ocrText': _extractedText,
+            'status': 'unmarked',
+            'timestamp': Timestamp.now(),
+            'userId': currentUser.uid,
+          });
 
       _showSnackBar("✅ Script saved successfully!");
 
@@ -214,16 +231,17 @@ class _UploadScriptScreenState extends State<UploadScriptScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => MarkScriptScreen(
-              script: {
-                'id': docRef.id,
-                'name': finalName,
-                'studentNumber': studentNumber,
-                'ocrText': _extractedText,
-                'timestamp': Timestamp.now(),
-              },
-              guideAnswers: [],
-            ),
+            builder:
+                (_) => MarkScriptScreen(
+                  script: {
+                    'id': docRef.id,
+                    'name': finalName,
+                    'studentNumber': studentNumber,
+                    'ocrText': _extractedText,
+                    'timestamp': Timestamp.now(),
+                  },
+                  guideAnswers: [],
+                ),
           ),
         );
       } else {
@@ -268,7 +286,10 @@ class _UploadScriptScreenState extends State<UploadScriptScreen> {
                 children: [
                   Image.asset('assets/icons/bluetick.png', height: 28),
                   const SizedBox(width: 8),
-                  const Text('AutoMark', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'AutoMark',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
               const SizedBox(height: 20),
@@ -305,7 +326,10 @@ class _UploadScriptScreenState extends State<UploadScriptScreen> {
                             padding: const EdgeInsets.only(right: 10),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.file(_imageFiles[index], height: 100),
+                              child: Image.file(
+                                _imageFiles[index],
+                                height: 100,
+                              ),
                             ),
                           ),
                           Positioned(
@@ -315,14 +339,31 @@ class _UploadScriptScreenState extends State<UploadScriptScreen> {
                               onTap: () async {
                                 final confirm = await showDialog<bool>(
                                   context: context,
-                                  builder: (_) => AlertDialog(
-                                    title: const Text("Remove Image?"),
-                                    content: const Text("Are you sure you want to remove this image?"),
-                                    actions: [
-                                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
-                                      TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("Remove")),
-                                    ],
-                                  ),
+                                  builder:
+                                      (_) => AlertDialog(
+                                        title: const Text("Remove Image?"),
+                                        content: const Text(
+                                          "Are you sure you want to remove this image?",
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed:
+                                                () => Navigator.pop(
+                                                  context,
+                                                  false,
+                                                ),
+                                            child: const Text("Cancel"),
+                                          ),
+                                          TextButton(
+                                            onPressed:
+                                                () => Navigator.pop(
+                                                  context,
+                                                  true,
+                                                ),
+                                            child: const Text("Remove"),
+                                          ),
+                                        ],
+                                      ),
                                 );
                                 if (confirm == true) {
                                   setState(() {
@@ -337,7 +378,11 @@ class _UploadScriptScreenState extends State<UploadScriptScreen> {
                                   color: Colors.black54,
                                 ),
                                 padding: const EdgeInsets.all(4),
-                                child: const Icon(Icons.close, color: Colors.white, size: 18),
+                                child: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
                               ),
                             ),
                           ),
@@ -370,7 +415,10 @@ class _UploadScriptScreenState extends State<UploadScriptScreen> {
               const SizedBox(height: 30),
               const Divider(),
 
-              const Text('Extracted & Structured Text:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'Extracted & Structured Text:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 10),
 
               if (_isLoading)
@@ -383,9 +431,10 @@ class _UploadScriptScreenState extends State<UploadScriptScreen> {
                     border: Border.all(color: Colors.grey.shade400),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: _extractedText.isEmpty
-                      ? const Text('No text extracted yet.')
-                      : Text(_extractedText),
+                  child:
+                      _extractedText.isEmpty
+                          ? const Text('No text extracted yet.')
+                          : Text(_extractedText),
                 ),
 
               if (_extractedText.isNotEmpty)
@@ -398,7 +447,9 @@ class _UploadScriptScreenState extends State<UploadScriptScreen> {
                           icon: const Icon(Icons.save_alt),
                           label: const Text("Save"),
                           onPressed: () => _saveScript(goToMarking: false),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.teal,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -407,7 +458,9 @@ class _UploadScriptScreenState extends State<UploadScriptScreen> {
                           icon: const Icon(Icons.bolt),
                           label: const Text("Save & Mark"),
                           onPressed: () => _saveScript(goToMarking: true),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                          ),
                         ),
                       ),
                     ],
