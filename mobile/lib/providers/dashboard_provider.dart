@@ -18,7 +18,7 @@ class DashboardProvider extends ChangeNotifier {
       final currentUser = FirebaseAuth.instance.currentUser;
 
       if (currentUser == null) {
-        // No user logged in, clear stats
+        // No user logged in, clear statatistcs
         marked = 0;
         unmarked = 0;
         total = 0;
@@ -28,7 +28,7 @@ class DashboardProvider extends ChangeNotifier {
         return;
       }
 
-      // Fetch user's scripts
+      // Fetch user's scripts to be marked
       final scriptsSnapshot = await FirebaseFirestore.instance
           .collection('scripts')
           .where('userId', isEqualTo: currentUser.uid)
