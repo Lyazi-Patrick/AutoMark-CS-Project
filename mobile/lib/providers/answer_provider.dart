@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Model representing each answer in the key.
+/// Model representing each answer in the answer Key.
 class AnswerEntry {
   final String type; // 'Objective', 'Keyword', or 'Essay'
   final String answer;
