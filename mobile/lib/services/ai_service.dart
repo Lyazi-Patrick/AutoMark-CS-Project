@@ -1,18 +1,23 @@
-
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:string_similarity/string_similarity.dart';
 
 class AIService {
-  // === API Keys ===
+  // === API Keys ====
   final String? _openAiKey = dotenv.env['OPENAI_API_KEY'];
   final String? _groqKey = dotenv.env['GROQ_API_KEY'];
-  final String _cohereKey = dotenv.env['COHERE_API_KEY'] ?? '6A1SzbNqSpmBRTfZzVMt8k7fj653gSy8TipWIzZO';
+  final String _cohereKey =
+      dotenv.env['COHERE_API_KEY'] ??
+      '6A1SzbNqSpmBRTfZzVMt8k7fj653gSy8TipWIzZO';
 
   // === API URLs ===
-  final Uri _openAiUrl = Uri.parse("https://api.openai.com/v1/chat/completions");
-  final Uri _groqUrl = Uri.parse("https://api.groq.com/openai/v1/chat/completions");
+  final Uri _openAiUrl = Uri.parse(
+    "https://api.openai.com/v1/chat/completions",
+  );
+  final Uri _groqUrl = Uri.parse(
+    "https://api.groq.com/openai/v1/chat/completions",
+  );
   final Uri _cohereUrl = Uri.parse("https://api.cohere.ai/v1/generate");
 
   // ========== PUBLIC METHODS ==========
@@ -23,15 +28,17 @@ class AIService {
     bool useGroq = true,
   }) async {
     try {
-      final List<Map<String, dynamic>> markingGuide = markingGuideText != null
-          ? await _extractMarkingGuide(markingGuideText, useGroq: useGroq)
-          : [];
+      final List<Map<String, dynamic>> markingGuide =
+          markingGuideText != null
+              ? await _extractMarkingGuide(markingGuideText, useGroq: useGroq)
+              : [];
 
       final Map<String, String> studentAnswers = await extractAnswersFromText(
         studentScript,
-        guideQuestions: markingGuide.isNotEmpty
-            ? markingGuide.map((q) => q['question'].toString()).toList()
-            : null,
+        guideQuestions:
+            markingGuide.isNotEmpty
+                ? markingGuide.map((q) => q['question'].toString()).toList()
+                : null,
         useGroq: useGroq,
       );
 
@@ -55,9 +62,11 @@ class AIService {
       };
     }
   }
-  
 
-  Future<List<Map<String, dynamic>>> extractMarkingGuideFromText(String text, {bool useGroq = true}) {
+  Future<List<Map<String, dynamic>>> extractMarkingGuideFromText(
+    String text, {
+    bool useGroq = true,
+  }) {
     return _extractMarkingGuide(text, useGroq: useGroq);
   }
 
@@ -76,101 +85,111 @@ class AIService {
   // ========== GRADING HELPERS ==========
 
   Future<Map<String, dynamic>> _gradeWithMarkingGuide({
-  required List<Map<String, dynamic>> markingGuide,
-  required Map<String, String> studentAnswers,
-  bool useGroq = true,
-}) async {
-  int totalScore = 0;
-  int totalPossible = 0;
-  List<Map<String, dynamic>> questionDetails = [];
+    required List<Map<String, dynamic>> markingGuide,
+    required Map<String, String> studentAnswers,
+    bool useGroq = true,
+  }) async {
+    int totalScore = 0;
+    int totalPossible = 0;
+    List<Map<String, dynamic>> questionDetails = [];
 
-  // Join all student answers into a single string for rawText checks
-  final allStudentAnswersText = studentAnswers.values.join(" ").toLowerCase();
+    // Join all student answers into a single string for rawText checks
+    final allStudentAnswersText = studentAnswers.values.join(" ").toLowerCase();
 
-  for (var question in markingGuide) {
-    final marks = (question['marks'] as num?)?.toInt() ?? 1;
+    for (var question in markingGuide) {
+      final marks = (question['marks'] as num?)?.toInt() ?? 1;
 
-    if (question.containsKey('question') && question.containsKey('modelAnswer')) {
-      final questionText = question['question'].toString();
-      final modelAnswer = question['modelAnswer'].toString();
-      final studentAnswer = studentAnswers[questionText] ?? "";
+      if (question.containsKey('question') &&
+          question.containsKey('modelAnswer')) {
+        final questionText = question['question'].toString();
+        final modelAnswer = question['modelAnswer'].toString();
+        final studentAnswer = studentAnswers[questionText] ?? "";
 
-      final gradeResult = await _hybridGradeAnswer(
-        studentAnswer: studentAnswer,
-        modelAnswer: modelAnswer,
-        allocatedMarks: marks,
-        useGroq: useGroq,
-      );
+        final gradeResult = await _hybridGradeAnswer(
+          studentAnswer: studentAnswer,
+          modelAnswer: modelAnswer,
+          allocatedMarks: marks,
+          useGroq: useGroq,
+        );
 
-      totalScore += (gradeResult['score'] as num).toInt();
+        totalScore += (gradeResult['score'] as num).toInt();
 
-      questionDetails.add({
-        'question': questionText,
-        'modelAnswer': modelAnswer,
-        'studentAnswer': studentAnswer,
-        'score': gradeResult['score'],
-        'maxScore': marks,
-        'feedback': gradeResult['feedback'],
-      });
-    } else if (question.containsKey('rawText')) {
-      final rawText = question['rawText'].toString().toLowerCase();
+        questionDetails.add({
+          'question': questionText,
+          'modelAnswer': modelAnswer,
+          'studentAnswer': studentAnswer,
+          'score': gradeResult['score'],
+          'maxScore': marks,
+          'feedback': gradeResult['feedback'],
+        });
+      } else if (question.containsKey('rawText')) {
+        final rawText = question['rawText'].toString().toLowerCase();
 
-      // Simple substring check as fallback for raw entries
-      final containsRaw = allStudentAnswersText.contains(rawText);
+        // Simple substring check as fallback for raw entries
+        final containsRaw = allStudentAnswersText.contains(rawText);
 
-      final score = containsRaw ? marks : 0;
-      totalScore += score;
+        final score = containsRaw ? marks : 0;
+        totalScore += score;
+        totalPossible += marks;
+
+        questionDetails.add({
+          'question': null,
+          'modelAnswer': null,
+          'studentAnswer': containsRaw ? rawText : "",
+          'score': score,
+          'maxScore': marks,
+          'feedback':
+              containsRaw
+                  ? "Raw text matched in answer."
+                  : "Raw text not found.",
+        });
+
+        // Continue to next since we handled rawText fallback
+        continue;
+      }
       totalPossible += marks;
-
-      questionDetails.add({
-        'question': null,
-        'modelAnswer': null,
-        'studentAnswer': containsRaw ? rawText : "",
-        'score': score,
-        'maxScore': marks,
-        'feedback': containsRaw ? "Raw text matched in answer." : "Raw text not found.",
-      });
-
-      // Continue to next since we handled rawText fallback
-      continue;
     }
-    totalPossible += marks;
-  }
 
-  return {
-    'totalScore': totalScore,
-    'totalPossible': totalPossible,
-    'percentage': totalPossible > 0 ? (totalScore / totalPossible * 100).toStringAsFixed(1) : '0',
-    'feedback': _generateOverallFeedback(totalScore, totalPossible),
-    'details': questionDetails,
-  };
-}
+    return {
+      'totalScore': totalScore,
+      'totalPossible': totalPossible,
+      'percentage':
+          totalPossible > 0
+              ? (totalScore / totalPossible * 100).toStringAsFixed(1)
+              : '0',
+      'feedback': _generateOverallFeedback(totalScore, totalPossible),
+      'details': questionDetails,
+    };
+  }
 
   Future<String> extractTextWithFallback(String rawText) async {
-  try {
-    final extractedAnswers = await extractAnswersFromText(rawText);
+    try {
+      final extractedAnswers = await extractAnswersFromText(rawText);
 
-    // Check if extractedAnswers is low quality or empty (you can refine this check)
-    bool isLowQuality = extractedAnswers.isEmpty ||
-        extractedAnswers.values.where((v) => v.trim().split(' ').length >= 5).length < 2;
+      // Check if extractedAnswers is low quality or empty (you can refine this check)
+      bool isLowQuality =
+          extractedAnswers.isEmpty ||
+          extractedAnswers.values
+                  .where((v) => v.trim().split(' ').length >= 5)
+                  .length <
+              2;
 
-    if (isLowQuality) {
-      // Fallback to cleaned OCR text only
+      if (isLowQuality) {
+        // Fallback to cleaned OCR text only
+        return await cleanOcrText(rawText);
+      }
+
+      // Convert map to nicely formatted string preserving keys and spacing
+      final buffer = StringBuffer();
+      extractedAnswers.forEach((key, value) {
+        buffer.writeln('$key:\n$value\n');
+      });
+      return buffer.toString().trim();
+    } catch (e) {
+      // AI extraction failed: fallback to clean OCR text
       return await cleanOcrText(rawText);
     }
-
-    // Convert map to nicely formatted string preserving keys and spacing
-    final buffer = StringBuffer();
-    extractedAnswers.forEach((key, value) {
-      buffer.writeln('$key:\n$value\n');
-    });
-    return buffer.toString().trim();
-
-  } catch (e) {
-    // AI extraction failed: fallback to clean OCR text
-    return await cleanOcrText(rawText);
   }
-}
 
   Future<Map<String, dynamic>> _gradeWithoutMarkingGuide({
     required String studentScript,
@@ -203,9 +222,17 @@ class AIService {
     final similarity = studentAnswer.similarityTo(modelAnswer);
 
     final keywords = _extractKeywords(modelAnswer);
-    final keywordScore = keywords.isEmpty
-        ? 0
-        : keywords.where((kw) => studentAnswer.toLowerCase().contains(kw.toLowerCase())).length / keywords.length;
+    final keywordScore =
+        keywords.isEmpty
+            ? 0
+            : keywords
+                    .where(
+                      (kw) => studentAnswer.toLowerCase().contains(
+                        kw.toLowerCase(),
+                      ),
+                    )
+                    .length /
+                keywords.length;
 
     final llmResult = await _gradeWithLLM(
       studentAnswer: studentAnswer,
@@ -215,33 +242,39 @@ class AIService {
     );
 
     final llmScore = (llmResult['score'] as num).toDouble();
-    final combinedScore = (0.4 * similarity + 0.3 * keywordScore + 0.3 * (llmScore / allocatedMarks)) * allocatedMarks;
+    final combinedScore =
+        (0.4 * similarity +
+            0.3 * keywordScore +
+            0.3 * (llmScore / allocatedMarks)) *
+        allocatedMarks;
     final finalScore = combinedScore.round().clamp(0, allocatedMarks);
 
-    return {
-      'score': finalScore,
-      'feedback': llmResult['feedback'],
-    };
+    return {'score': finalScore, 'feedback': llmResult['feedback']};
   }
 
   // ========== EXTRACTION HELPERS ==========
 
   Future<Map<String, String>> extractAnswersFromText(
-  String rawText, {
-  List<String>? guideQuestions,
-  bool useGroq = true,
-}) async {
-  final url = useGroq ? _groqUrl : _openAiUrl;
-  final apiKey = useGroq ? _groqKey : _openAiKey;
-  if (apiKey == null) throw Exception('API key not configured');
+    String rawText, {
+    List<String>? guideQuestions,
+    bool useGroq = true,
+  }) async {
+    final url = useGroq ? _groqUrl : _openAiUrl;
+    final apiKey = useGroq ? _groqKey : _openAiKey;
+    if (apiKey == null) throw Exception('API key not configured');
 
-  final guideSection = guideQuestions != null && guideQuestions.isNotEmpty
-      ? "Here are the questions to find answers for:\n" +
-          guideQuestions.asMap().entries.map((e) => "${e.key + 1}. ${e.value}").join("\n") +
-          "\n\n"
-      : "";
+    final guideSection =
+        guideQuestions != null && guideQuestions.isNotEmpty
+            ? "Here are the questions to find answers for:\n" +
+                guideQuestions
+                    .asMap()
+                    .entries
+                    .map((e) => "${e.key + 1}. ${e.value}")
+                    .join("\n") +
+                "\n\n"
+            : "";
 
-  final prompt = """
+    final prompt = """
 You are an assistant extracting detailed student answers from a handwritten exam OCR text.
 
 Your task:
@@ -266,16 +299,19 @@ OCR Extracted Exam Script:
 \"\"\"$rawText\"\"\"
 """;
 
-  final response = await _callLLMAPI(url, apiKey, prompt);
-  return Map<String, String>.from(jsonDecode(response));
-}
+    final response = await _callLLMAPI(url, apiKey, prompt);
+    return Map<String, String>.from(jsonDecode(response));
+  }
 
-  Future<List<Map<String, dynamic>>> _extractMarkingGuide(String text, {bool useGroq = true}) async {
-  final url = useGroq ? _groqUrl : _openAiUrl;
-  final apiKey = useGroq ? _groqKey : _openAiKey;
-  if (apiKey == null) throw Exception('API key not configured');
+  Future<List<Map<String, dynamic>>> _extractMarkingGuide(
+    String text, {
+    bool useGroq = true,
+  }) async {
+    final url = useGroq ? _groqUrl : _openAiUrl;
+    final apiKey = useGroq ? _groqKey : _openAiKey;
+    if (apiKey == null) throw Exception('API key not configured');
 
-  final prompt = """
+    final prompt = """
 The following text is a marking guide written by a teacher in any format.
 
 Your job is to extract each question with:
@@ -294,45 +330,50 @@ Return as a JSON array of objects:
 ]
 """;
 
-  final response = await _callLLMAPI(url, apiKey, prompt);
-  print("🧠 Raw AI marking guide response:\n$response");
+    final response = await _callLLMAPI(url, apiKey, prompt);
+    print("🧠 Raw AI marking guide response:\n$response");
 
-  try {
-    final data = jsonDecode(response);
+    try {
+      final data = jsonDecode(response);
 
-    if (data is! List) throw Exception('Expected a JSON array');
+      if (data is! List) throw Exception('Expected a JSON array');
 
-    final cleanList = data
-        .whereType<Map<String, dynamic>>()
-        .map((e) {
-          final question = e['question']?.toString().trim();
-          final answer = e['modelAnswer']?.toString().trim();
-          final marksRaw = e['marks'];
+      final cleanList =
+          data
+              .whereType<Map<String, dynamic>>()
+              .map((e) {
+                final question = e['question']?.toString().trim();
+                final answer = e['modelAnswer']?.toString().trim();
+                final marksRaw = e['marks'];
 
-          final marks = (marksRaw is int)
-              ? marksRaw
-              : int.tryParse(marksRaw?.toString() ?? '') ?? 1;
+                final marks =
+                    (marksRaw is int)
+                        ? marksRaw
+                        : int.tryParse(marksRaw?.toString() ?? '') ?? 1;
 
-          if (question == null || question.isEmpty || answer == null || answer.isEmpty) {
-            return null;
-          }
+                if (question == null ||
+                    question.isEmpty ||
+                    answer == null ||
+                    answer.isEmpty) {
+                  return null;
+                }
 
-          return {
-            'question': question,
-            'modelAnswer': answer,
-            'marks': marks,
-          };
-        })
-        .whereType<Map<String, dynamic>>() // remove nulls
-        .toList();
+                return {
+                  'question': question,
+                  'modelAnswer': answer,
+                  'marks': marks,
+                };
+              })
+              .whereType<Map<String, dynamic>>() // remove nulls
+              .toList();
 
-    print("✅ Cleaned marking guide: $cleanList");
-    return cleanList;
-  } catch (e) {
-    print("❌ Failed to parse AI response: $e");
-    throw Exception("Invalid marking guide format: ${e.toString()}");
+      print("✅ Cleaned marking guide: $cleanList");
+      return cleanList;
+    } catch (e) {
+      print("❌ Failed to parse AI response: $e");
+      throw Exception("Invalid marking guide format: ${e.toString()}");
+    }
   }
-}
 
   // ========== API CALLERS ==========
 
@@ -352,7 +393,8 @@ Return as a JSON array of objects:
     });
 
     final response = await http.post(url, headers: headers, body: body);
-    if (response.statusCode != 200) throw Exception("API error: ${response.body}");
+    if (response.statusCode != 200)
+      throw Exception("API error: ${response.body}");
 
     final data = jsonDecode(response.body);
     return data['choices'][0]['message']['content'];
@@ -380,12 +422,12 @@ Student Answer: $studentAnswer
     return jsonDecode(response);
   }
 
- Future<String> cleanOcrText(String rawText, {bool useGroq = true}) async {
-  final url = useGroq ? _groqUrl : _openAiUrl;
-  final apiKey = useGroq ? _groqKey : _openAiKey;
-  if (apiKey == null) throw Exception('API key not configured');
+  Future<String> cleanOcrText(String rawText, {bool useGroq = true}) async {
+    final url = useGroq ? _groqUrl : _openAiUrl;
+    final apiKey = useGroq ? _groqKey : _openAiKey;
+    if (apiKey == null) throw Exception('API key not configured');
 
-  final prompt = """
+    final prompt = """
 You are an OCR cleanup assistant.
 
 You will receive raw text extracted from handwritten exam scripts. 
@@ -402,12 +444,12 @@ Raw OCR text:
 \"\"\"$rawText\"\"\"
 """;
 
-  final response = await _callLLMAPI(url, apiKey, prompt);
+    final response = await _callLLMAPI(url, apiKey, prompt);
 
-  // Post-process response to remove unwanted text like intros or quotes
-  return _postProcessCleanedText(response);
-}
-  
+    // Post-process response to remove unwanted text like intros or quotes
+    return _postProcessCleanedText(response);
+  }
+
   Future<String> _callCohereAPI(String text) async {
     final headers = {
       'Authorization': 'Bearer $_cohereKey',
@@ -434,7 +476,8 @@ Raw OCR text:
     });
 
     final response = await http.post(_cohereUrl, headers: headers, body: body);
-    if (response.statusCode != 200) throw Exception("Cohere API error: ${response.body}");
+    if (response.statusCode != 200)
+      throw Exception("Cohere API error: ${response.body}");
 
     final data = jsonDecode(response.body);
     return data['generations'][0]['text'];
@@ -443,7 +486,8 @@ Raw OCR text:
   // ========== UTILITIES ==========
 
   List<String> _extractKeywords(String text) {
-    final words = text.split(RegExp(r'[\s,.]+')).map((w) => w.toLowerCase()).toSet();
+    final words =
+        text.split(RegExp(r'[\s,.]+')).map((w) => w.toLowerCase()).toSet();
     words.removeWhere((w) => w.length <= 3);
     return words.toList();
   }
@@ -455,22 +499,20 @@ Raw OCR text:
     if (percent >= 40) return "Fair attempt, revise concepts.";
     return "Needs improvement.";
   }
+
   String _postProcessCleanedText(String text) {
-  final unwantedPatterns = <RegExp>[
-    // Remove leading "here is the cleaned-up text:" (case-insensitive, optional spaces)
-    RegExp(r'^\s*here is the cleaned[- ]?up text:?', caseSensitive: false),
+    final unwantedPatterns = <RegExp>[
+      // Remove leading "here is the cleaned-up text:" (case-insensitive, optional spaces)
+      RegExp(r'^\s*here is the cleaned[- ]?up text:?', caseSensitive: false),
 
-    // Remove leading or trailing single or double quotes
-    RegExp(r'''^[\'"]+|[\'"]+$''')
- ];
+      // Remove leading or trailing single or double quotes
+      RegExp(r'''^[\'"]+|[\'"]+$'''),
+    ];
 
-  for (final pattern in unwantedPatterns) {
-    text = text.replaceAll(pattern, '');
+    for (final pattern in unwantedPatterns) {
+      text = text.replaceAll(pattern, '');
+    }
+
+    return text.trim();
   }
-
-  return text.trim();
 }
-}
-
-
-  
