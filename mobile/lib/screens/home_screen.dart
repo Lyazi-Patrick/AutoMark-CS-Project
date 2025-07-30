@@ -15,29 +15,35 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String displayName = "Lecturer";
+  String? displayName;
+  bool isPremium = false;
+  bool isLoadingUser = true;
 
   @override
   void initState() {
     super.initState();
-    _loadUserName();
+    _loadUserData();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<DashboardProvider>(context, listen: false).fetchStats();
     });
   }
 
-  Future<void> _loadUserName() async {
+  Future<void> _loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
+    final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
 
     if (userDoc.exists && userDoc.data() != null) {
       setState(() {
-        displayName = userDoc['name'] ?? user.email ?? 'Lecturer';
+        displayName = userDoc.data()!['name'] ?? user.email;
+        isPremium = userDoc.data()!['isPremium'] ?? false;
+        isLoadingUser = false;
+      });
+    } else {
+      setState(() {
+        displayName = user.email;
+        isLoadingUser = false;
       });
     }
   }
@@ -80,8 +86,9 @@ class _HomeScreenState extends State<HomeScreen> {
         child: RefreshIndicator(
           onRefresh: () async {
             await dashboardProvider.fetchStats();
+            await _loadUserData();
           },
-          child: dashboardProvider.isLoading
+          child: dashboardProvider.isLoading || isLoadingUser
               ? const Center(child: CircularProgressIndicator())
               : ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -92,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text("Welcome, $displayName 👋",
+                          Text("Welcome, ${displayName ?? 'Lecturer'} 👋",
                               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 4),
                           const Text("Here’s your marking summary",
@@ -132,6 +139,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Colors.purple,
                       onTap: () => Navigator.pushNamed(context, '/result'),
                     ),
+
+                    // Only show the Premium Card if not premium
+                    if (!isPremium)
+                      _buildStatCard(
+                        title: "Upgrade to Premium",
+                        value: "Unlock all features",
+                        icon: Icons.workspace_premium,
+                        color: Colors.amber,
+                        onTap: () => Navigator.pushNamed(context, '/payments'),
+                      ),
                   ],
                 ),
         ),

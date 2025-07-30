@@ -1,8 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-
-import '../models/answer_entry.dart'; // Model for structured answers
-import '../utils/grading_logic.dart'; // Custom grading logic
+import '../models/answer_entry.dart';
+import '../utils/grading_logic.dart'; // Updated grading logic with autoGradeAnswers
 
 class ResultProvider with ChangeNotifier {
   final List<Map<String, dynamic>> _results = [];
@@ -13,18 +12,16 @@ class ResultProvider with ChangeNotifier {
 
   double get averageScore {
     if (_results.isEmpty) return 0.0;
-
     final total = _results.fold<double>(
       0.0,
       (sum, r) => sum + ((r['score'] ?? 0) as num).toDouble(),
     );
-
     return total / _results.length;
   }
 
   int get totalSubmissions => _results.length;
 
-  /// Fetches results from Firestore
+  /// Fetch results from Firestore
   Future<void> fetchResults() async {
     _isLoading = true;
     notifyListeners();
@@ -41,12 +38,15 @@ class ResultProvider with ChangeNotifier {
         return {
           'id': doc.id,
           'name': data['name'] ?? 'Unknown',
-          'score': (data['score'] ?? 0) as num,
-          'total': (data['total'] ?? 0) as num,
+          'score': toInt(data['score']),
+          'total': toInt(data['total']),
+          'percentage': (data['percentage'] ?? "0.0").toString(),
           'timestamp': data['timestamp'],
           'method': data['method'] ?? 'auto',
-        };
-      }).toList());
+          'details': data['details'] ?? []
+          };
+  }).toList());
+
     } catch (e) {
       debugPrint('❌ Failed to fetch results: $e');
     }
@@ -55,45 +55,67 @@ class ResultProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Score using student & correct answers (Objective + Essay)
-  void calculateScore(List<String> studentAnswers, List<AnswerEntry> correctAnswers) {
-    final score = gradeAnswers(studentAnswers, correctAnswers);
+  /// Grade using AutoMark fallback (no AI), using updated logic
+  void calculateAutoMarkScore(List<String> studentAnswers, List<AnswerEntry> correctAnswers) {
+    final answerKey = correctAnswers.map((e) => e.toJson()).toList();
+
+    final result = autoGradeAnswers(
+      studentAnswers: studentAnswers,
+      answerKey: answerKey,
+    );
 
     _results.insert(0, {
-      'name': 'Anonymous', // You can override this when known
-      'score': score,
-      'total': correctAnswers.length,
+      'name': 'Anonymous',
+      'score': result['totalScore'],
+      'total': result['totalPossible'],
+      'percentage': result['percentage'],
       'timestamp': Timestamp.now(),
-      'method': 'scan',
+      'method': 'automark',
+      'details': result['details'], // Can be used for feedback review
     });
 
     notifyListeners();
   }
 
-  /// Set a result directly when score is already calculated (e.g. AI/Auto)
-  void setResult(int score, int total, {required String studentNumber, required String studentName}) {
+  /// Set result directly (for AI grading or when score is pre-calculated)
+  void setAIResult({
+    required int score,
+    required int total,
+    required String percentage,
+    required List<Map<String, dynamic>> details,
+    required String studentName,
+  }) {
     _results.insert(0, {
       'name': studentName.isNotEmpty ? studentName : 'Anonymous',
       'score': score,
       'total': total,
+      'percentage': percentage,
       'timestamp': Timestamp.now(),
-      'method': 'auto',
+      'method': 'aimark',
+      'details': details,
     });
 
     notifyListeners();
   }
 
   /// Get result by student name
+  /// Get result by student name
   Map<String, dynamic> getStudentResultByName(String name) {
     return _results.firstWhere(
       (r) => r['name'] == name,
-      orElse: () => {'score': 0, 'total': 0},
+      orElse: () => {'score': 0, 'total': 0, 'percentage': '0.0'},
     );
   }
 
-  /// Clear all stored results (used during reset)
+  /// Clear results (reset)
   void clear() {
     _results.clear();
     notifyListeners();
   }
+  int toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is num) return value.toInt();
+    return 0;
+}
 }

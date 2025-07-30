@@ -68,22 +68,6 @@ class CustomDrawer extends StatelessWidget {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.mark_chat_unread),
-              title: const Text('Unmarked Scripts'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.pushNamed(context, '/unmarked');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.check_circle_outline),
-              title: const Text('Marked Scripts'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.pushNamed(context, '/marked_scripts');
-              },
-            ),
-            ListTile(
               leading: const Icon(Icons.info),
               title: const Text("About"),
               onTap: () {

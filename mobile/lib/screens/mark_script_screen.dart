@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../utils/grading_logic.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/ai_service.dart';
 
 class MarkScriptScreen extends StatefulWidget {
   final Map<String, dynamic> script;
-  final List<dynamic> guideAnswers;
+  final List<Map<String, dynamic>> guideAnswers;
 
   const MarkScriptScreen({
     super.key,
@@ -24,9 +24,8 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
   String? _feedback;
   final _manualController = TextEditingController();
 
-  // Returns Map<QuestionID, Answer>
   Map<String, String> parseAnswers(String ocrText) {
-    final lines = ocrText.split('\n');
+    final lines = ocrText.split(RegExp(r'[\n\r]+'));
     final Map<String, String> answers = {};
 
     for (var line in lines) {
@@ -42,13 +41,7 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
     return answers;
   }
 
-  // Returns List<Answer> — only values, for auto marking function
-  List<String> parseAnswersList(String ocrText) {
-    final map = parseAnswers(ocrText);
-    return map.values.toList();
-  }
-
-  Future<void> _autoMark() async {
+  Future<void> _autoMark(List<Map<String, dynamic>> guideAnswers) async {
     setState(() => _isLoading = true);
 
     try {
@@ -58,14 +51,21 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
         return;
       }
 
-      // Use parseAnswersList here to get List<String> for gradeAnswers
-      final parsedAnswers = parseAnswersList(ocrText);
-      final score = gradeAnswers(parsedAnswers, widget.guideAnswers);
+      final parsedAnswers = parseAnswers(ocrText);
+      int score = 0;
+
+      for (var guide in guideAnswers) {
+        final modelAnswer = guide['modelAnswer'];
+        final studentAnswer = parsedAnswers[guide['question']] ?? '';
+        if (studentAnswer.toLowerCase().trim() == modelAnswer.toLowerCase().trim()) {
+          score += guide['marks'] as int;
+        }
+      }
 
       setState(() {
         _score = score;
-        _total = widget.guideAnswers.fold<int>(0, (sum, q) => sum + (q['marks'] as int));
-        _feedback = null;
+        _total = guideAnswers.fold<int>(0, (sum, q) => sum + (q['marks'] as int));
+        _feedback = "Auto-marked using exact matches.";
       });
 
       await _saveResult(score, _total!, method: 'auto');
@@ -76,7 +76,7 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
     }
   }
 
-  Future<void> _aiMark() async {
+  Future<void> _aiMark(List<Map<String, dynamic>> guideAnswers) async {
     setState(() => _isLoading = true);
 
     try {
@@ -87,11 +87,9 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
       }
 
       final ai = AIService();
-
-      // Use parseAnswers to get Map<String, String> for AI grading
       final studentAnswers = parseAnswers(ocrText);
 
-      final answerKey = widget.guideAnswers.map((e) => {
+      final answerKey = guideAnswers.map((e) => {
             "question": e['question'],
             "modelAnswer": e['modelAnswer'],
             "marks": e['marks'],
@@ -100,6 +98,7 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
       final result = await ai.gradeScript(
         answerKey: answerKey,
         studentAnswers: studentAnswers,
+        useGroq: true,
       );
 
       setState(() {
@@ -111,12 +110,13 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
       await _saveResult(
         _score!,
         _total!,
-        method: 'ai',
+        method: 'ai-hybrid',
         feedback: _feedback,
         details: result['details'],
       );
     } catch (e) {
-      _showSnackBar("AI marking failed: $e", isError: true);
+      _showSnackBar("AI Hybrid marking failed: $e", isError: true);
+      await _autoMark(guideAnswers);
     } finally {
       setState(() => _isLoading = false);
     }
@@ -126,10 +126,6 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
     final score = int.tryParse(_manualController.text.trim());
     if (score == null || score < 0) {
       _showSnackBar("⚠ Enter a valid positive number", isError: true);
-      return;
-    }
-    if (score > 100) {
-      _showSnackBar("⚠ Score too high! Max is 100", isError: true);
       return;
     }
 
@@ -157,31 +153,47 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
     String? feedback,
     List<dynamic>? details,
   }) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
     final script = widget.script;
     final id = script['id'];
+    final userId = currentUser?.uid;
 
+    final percentage = total != null && total > 0 ? ((score / total) * 100).round() : 0;
+
+    // Save result with userId for privacy
     await FirebaseFirestore.instance.collection('results').add({
+      'userId': userId,  // <-- Privacy enforcement here
       'name': script['name'],
       'score': score,
       'total': total ?? 0,
+      'percentage': percentage,
       'method': method,
       'feedback': feedback,
       'details': details,
       'timestamp': Timestamp.now(),
     });
 
+    // Update script only if it belongs to the current user
     if (id != null) {
-      await FirebaseFirestore.instance.collection('scripts').doc(id).update({
-        'status': 'marked',
-        'score': score,
-        'total': total,
-        'method': method,
-        'feedback': feedback,
-        'details': details,
-      });
+      final scriptDoc = FirebaseFirestore.instance.collection('scripts').doc(id);
+      final docSnapshot = await scriptDoc.get();
+
+      if (docSnapshot.exists && docSnapshot.data()?['userId'] == userId) {
+        await scriptDoc.update({
+          'status': 'marked',
+          'score': score,
+          'total': total,
+          'percentage': percentage,
+          'method': method,
+          'feedback': feedback,
+          'details': details,
+        });
+      } else {
+        _showSnackBar("⚠ Cannot update script: Permission denied.", isError: true);
+      }
     }
 
-    _showSnackBar("✅ Script marked successfully!");
+    _showSnackBar("Script marked successfully!");
     Navigator.pop(context);
   }
 
@@ -204,10 +216,23 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
   @override
   Widget build(BuildContext context) {
     final script = widget.script;
+    final guideAnswers = widget.guideAnswers;
+
+    if (guideAnswers.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text("Mark Script")),
+        body: const Center(child: Text("No marking guide selected.")),
+      );
+    }
 
     final submissionTime = script['timestamp'] != null
         ? (script['timestamp'] as Timestamp).toDate()
         : null;
+
+    int? percent;
+    if (_score != null && _total != null && _total! > 0) {
+      percent = ((_score! / _total!) * 100).round();
+    }
 
     return Scaffold(
       appBar: AppBar(title: Text("Mark Script - ${script['name']}")),
@@ -248,7 +273,7 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.bolt),
                           label: const Text("Auto Mark"),
-                          onPressed: _autoMark,
+                          onPressed: () => _autoMark(guideAnswers),
                           style: ElevatedButton.styleFrom(
                             minimumSize: const Size.fromHeight(50),
                             backgroundColor: Colors.blue,
@@ -259,8 +284,8 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
                       Expanded(
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.smart_toy),
-                          label: const Text("AI Mark"),
-                          onPressed: _aiMark,
+                          label: const Text("AI Hybrid Mark"),
+                          onPressed: () => _aiMark(guideAnswers),
                           style: ElevatedButton.styleFrom(
                             minimumSize: const Size.fromHeight(50),
                             backgroundColor: const Color.fromARGB(255, 34, 20, 58),
@@ -287,13 +312,13 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
                       minimumSize: const Size.fromHeight(50),
                     ),
                   ),
-                  if (_score != null) ...[
+                  if (percent != null) ...[
                     const SizedBox(height: 20),
                     Center(
                       child: Text(
-                        "Score: $_score / $_total",
+                        "Final Score: $_score / $_total (${percent}%)",
                         style: const TextStyle(
-                            fontSize: 16,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: Colors.green),
                       ),
@@ -301,12 +326,11 @@ class _MarkScriptScreenState extends State<MarkScriptScreen> {
                   ],
                   if (_feedback != null) ...[
                     const SizedBox(height: 12),
-                    const Text("Overall Feedback:",
+                    const Text("Feedback:",
                         style: TextStyle(
                             fontWeight: FontWeight.bold, fontSize: 14)),
                     const SizedBox(height: 4),
-                    Text(_feedback!,
-                        style: const TextStyle(color: Colors.black87)),
+                    Text(_feedback!, style: const TextStyle(color: Colors.black87)),
                   ],
                 ],
               ),

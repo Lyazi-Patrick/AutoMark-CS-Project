@@ -11,19 +11,18 @@ import 'providers/result_provider.dart';
 import 'providers/marking_guide_provider.dart';
 import 'providers/dashboard_provider.dart';
 
-
-import 'screens/home_screen.dart'; // Ensure this file exists and exports a HomeScreen class
+import 'screens/payments_screen.dart';
+import 'screens/home_screen.dart';
 import 'screens/upload_script_screen.dart';
 import 'screens/answer_key_screen.dart';
 import 'screens/result_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/login_screen.dart';
-//import 'screens/scan_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/marked_scripts.dart';
 import 'screens/downloads_screen.dart';
-
+import 'screens/history_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load();
@@ -68,7 +67,9 @@ class AutoMarkApp extends StatelessWidget {
           '/profile': (context) => const AuthGuard(child: ProfileScreen()),
           '/unmarked':(context) => const AuthGuard(child: UnmarkedScriptsScreen()),
           '/marked_scripts': (context) => AuthGuard(child: MarkedScriptsScreen()),
+          '/payments':(context) => const AuthGuard(child: PaymentsScreen()),
           '/downloads': (context) => const AuthGuard(child: DownloadsScreen()),
+          '/history':(context) => const AuthGuard(child: HistoryScreen()),
         },
       ),
     );

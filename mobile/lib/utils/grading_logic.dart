@@ -1,60 +1,68 @@
-/// Parses raw OCR answer text into a list of cleaned answers (by line).
-List<String> parseAnswers(String rawText) {
-  return rawText
-      .trim()
-      .split(RegExp(r'[\n\r]+'))
-      .map((line) => line.trim())
-      .where((line) => line.isNotEmpty)
-      .toList();
-}
+import 'package:string_similarity/string_similarity.dart';
 
-/// Grades a student's answers against the structured answer key.
-///
-/// Supports:
-/// - Objective: Exact match (e.g., "A").
-/// - Keyword: Checks if at least 50% of keywords are found in the answer.
-/// - Weighted Keyword: Same as keyword, but adds a weight to the score.
-///
-/// Parameters:
-/// - [studentAnswers]: Parsed answers from OCR.
-/// - [answerKey]: List of answer entries (Map with 'type', 'answer', 'keywords', 'weight').
-///
-/// Returns:
-/// - Total score as an integer.
-int gradeAnswers(List<String> studentAnswers, List<dynamic> answerKey) {
-  int score = 0;
+/// Fallback AutoMark grading logic (non-AI, no LLM call)
+/// Uses similarity + simple keyword matching for local grading.
+Map<String, dynamic> autoGradeAnswers({
+  required List<String> studentAnswers,
+  required List<Map<String, dynamic>> answerKey,
+}) {
+  int totalScore = 0;
+  int totalPossible = 0;
+  List<Map<String, dynamic>> details = [];
 
-  for (int i = 0; i < answerKey.length && i < studentAnswers.length; i++) {
-    final rawStudentAnswer = studentAnswers[i]
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^\w\s]'), '')
-        .trim();
-
+  for (int i = 0; i < answerKey.length; i++) {
     final item = answerKey[i];
+    final question = item['question'];
+    final modelAnswer = item['modelAnswer'];
+    final marks = (item['marks'] as num?)?.toInt() ?? 1; // Default to 1 if null
 
-    if (item is! Map<String, dynamic>) continue;
+    String studentAnswer = (i < studentAnswers.length) ? studentAnswers[i] : "";
 
-    final type = item['type'];
-    final answer = (item['answer'] ?? '').toString().toLowerCase().trim();
-    final keywords = List<String>.from(item['keywords'] ?? []).map((k) => k.toLowerCase().trim()).toList();
-    final weight = item['weight'] is num ? (item['weight'] as num).toInt() : 1;
+    final cleanedStudentAnswer = _clean(studentAnswer);
+    final cleanedModelAnswer = _clean(modelAnswer);
 
-    if (type == 'Objective') {
-      final cleanedAnswer = answer.replaceAll(RegExp(r'[^\w\s]'), '');
-      if (rawStudentAnswer == cleanedAnswer) {
-        score += 1;
-      }
-    } else if (type == 'Keyword') {
-      if (keywords.isEmpty) continue;
+    // Simple similarity score
+    final similarity = cleanedStudentAnswer.similarityTo(cleanedModelAnswer);
 
-      final matched = keywords.where((k) => rawStudentAnswer.contains(k)).length;
-      final matchRatio = matched / keywords.length;
+    // Simple keyword matching
+    final modelKeywords = modelAnswer.split(RegExp(r'[\s,.]+')).where((w) => w.length > 3).toList();
+    final matchedKeywords = modelKeywords.where((kw) => cleanedStudentAnswer.contains(kw.toLowerCase())).length;
+    final keywordRatio = (modelKeywords.isEmpty) ? 0.0 : (matchedKeywords / modelKeywords.length);
 
-      if (matchRatio >= 0.5) {
-        score += weight;
-      }
-    }
+    // Score decision
+    double rawScoreRatio = (0.5 * similarity) + (0.5 * keywordRatio);
+    int awardedMarks = (rawScoreRatio * marks).round();
+
+    totalScore += awardedMarks;
+    totalPossible += marks;
+
+    // Feedback
+    final feedback = "Similarity: ${(similarity * 100).toStringAsFixed(1)}%, "
+        "Keywords matched: ${(keywordRatio * 100).toStringAsFixed(1)}%. "
+        "Score: $awardedMarks/$marks";
+
+    details.add({
+      "question": question,
+      "modelAnswer": modelAnswer,
+      "studentAnswer": studentAnswer,
+      "allocatedMarks": marks,
+      "score": awardedMarks,
+      "feedback": feedback,
+    });
   }
 
-  return score;
+  return {
+    "totalScore": totalScore,
+    "totalPossible": totalPossible,
+    "percentage": (totalPossible > 0) ? (totalScore / totalPossible * 100).toStringAsFixed(1) : "0.0",
+    "details": details,
+  };
+}
+
+/// Cleans a string: lowercases, removes punctuation and trims spaces.
+String _clean(String text) {
+  return text
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^\w\s]'), '')
+      .trim();
 }
