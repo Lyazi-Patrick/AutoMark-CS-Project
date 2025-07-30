@@ -29,7 +29,7 @@ class DownloadsScreen extends StatelessWidget {
           .doc(docId)
           .delete();
 
-      // Deletes the local file if exists
+      // Deletes the local file if they exists
       final file = File(filePath);
       if (await file.exists()) {
         await file.delete();
