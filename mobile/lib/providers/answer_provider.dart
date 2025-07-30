@@ -48,14 +48,14 @@ class AnswerProvider extends ChangeNotifier {
   /// Returns an unmodifiable list of entries
   List<AnswerEntry> get entries => List.unmodifiable(_entries);
 
-  /// Loads entries from JSON data
+  /// Loads entries from JSON data.
   void loadFromJson(List<dynamic> jsonList) {
     _entries.clear();
     _entries.addAll(jsonList.map((e) => AnswerEntry.fromJson(e)));
     notifyListeners();
   }
 
-  /// Adds a new entry
+  /// Adds a new entry.
   void addEntry(AnswerEntry entry) {
     _entries.add(entry);
     notifyListeners();
