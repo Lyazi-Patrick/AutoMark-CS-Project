@@ -6,7 +6,7 @@ import 'package:image_picker/image_picker.dart';
 class OCRService {
   final ImagePicker _picker = ImagePicker();
 
-  /// Prompts user to pick an image from camera or gallery
+  /// Prompts user to pick an image from camera or gallery...
   Future<File?> pickImage({bool fromCamera = true}) async {
     final XFile? pickedFile = await _picker.pickImage(
       source: fromCamera ? ImageSource.camera : ImageSource.gallery,
