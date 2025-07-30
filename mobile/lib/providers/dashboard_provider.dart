@@ -28,7 +28,7 @@ class DashboardProvider extends ChangeNotifier {
         return;
       }
 
-      // Fetch user's scripts to be marked
+      // Fetch prefered user's scripts to be marked
       final scriptsSnapshot = await FirebaseFirestore.instance
           .collection('scripts')
           .where('userId', isEqualTo: currentUser.uid)
