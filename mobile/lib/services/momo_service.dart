@@ -1,3 +1,4 @@
+// This is a Dart file for a service that interacts with the MTN Mobile Money 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';

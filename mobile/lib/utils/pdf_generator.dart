@@ -66,7 +66,7 @@ class PDFGenerator {
     final fileName = "automark_report_${now.millisecondsSinceEpoch}.pdf";
     final filePath = "${downloadsDir.path}/$fileName";
 
-    // Ask for permissions if needed
+    // Ask for permissions if needed or ignore if already granted
     if (Platform.isAndroid) {
       var status = await Permission.storage.status;
       if (!status.isGranted) {
@@ -77,7 +77,7 @@ class PDFGenerator {
     final file = File(filePath);
     await file.writeAsBytes(await pdf.save());
 
-    // Save metadata to Firestore "downloads" collection
+    // Save metadata to Firestore "downloads" collection and notify user
     await FirebaseFirestore.instance.collection('downloads').add({
       'title': fileName,
       'filePath': filePath,

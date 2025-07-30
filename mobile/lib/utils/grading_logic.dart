@@ -21,7 +21,7 @@ Map<String, dynamic> autoGradeAnswers({
     final cleanedStudentAnswer = _clean(studentAnswer);
     final cleanedModelAnswer = _clean(modelAnswer);
 
-    // Simple similarity score
+    // Simple similarity score using string_similarity package
     final similarity = cleanedStudentAnswer.similarityTo(cleanedModelAnswer);
 
     // Simple keyword matching

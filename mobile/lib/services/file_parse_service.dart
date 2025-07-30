@@ -1,3 +1,4 @@
+// This is a Dart file for a service that parses files like PDF and DOCX 
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';

@@ -11,7 +11,7 @@ class AuthGuard extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      // Redirect to login if not authenticated
+      // Redirect to login if not authenticated properly
       Future.microtask(() {
         Navigator.of(context).pushReplacementNamed('/login');
       });
