@@ -38,7 +38,7 @@ class DashboardProvider extends ChangeNotifier {
       unmarked = scriptsSnapshot.docs.where((doc) => doc['status'] == 'unmarked').length;
       total = scriptsSnapshot.docs.length;
 
-      // Check if user has at least one answer key
+      // Check if user has at least one answer key.
       final answerKeysSnapshot = await FirebaseFirestore.instance
           .collection('answer_keys')
           .where('userId', isEqualTo: currentUser.uid)
