@@ -92,7 +92,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
           'title': data['title'] ?? 'Untitled Guide',
           'answers': data['answers'] ?? [],
           'timestamp': data['timestamp'],
-          'source': data['source'] ?? 'manual', // Added source tracking
+          
         };
       }).toList();
       _isLoadingMore = false;
@@ -139,93 +139,130 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
   }
 
   Future<void> _parseScannedAnswerKey(String rawText) async {
-    final aiService = AIService();
+  final aiService = AIService();
 
-    try {
-      final extractedEntries = await aiService.extractMarkingGuideFromText(rawText);
+  try {
+    // Stage 1: Try AI extraction
+    final extractedEntries = await aiService.extractMarkingGuideFromText(rawText);
+
+    if (extractedEntries.isEmpty) throw Exception("AI returned empty list");
+
+    _entries.clear();
+    _entries.addAll(extractedEntries.map((e) => AnswerEntry.fromJson(e)));
+
+    _initControllersFromEntries();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("✅ Marking guide extracted successfully.")),
+    );
+
+    _selectedGuideId = null;
+    setState(() => _isEditing = true);
+  } catch (e) {
+    debugPrint("AI extraction failed: $e");
+    // Stage 2: Try simple rule-based fallback
+    final fallbackEntries = _basicParseFallback(rawText);
+
+    if (fallbackEntries.isNotEmpty) {
       _entries.clear();
-      _entries.addAll(
-        extractedEntries.map((e) => AnswerEntry.fromJson(e as Map<String, dynamic>))
-      );
-
+      _entries.addAll(fallbackEntries);
       _initControllersFromEntries();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Marking guide extracted successfully.")),
+        const SnackBar(content: Text("✅ Fallback parser used for marking guide.")),
       );
-
-      setState(() {
-        _isEditing = true;
-      });
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("AI extraction failed. Switching to manual mode.")),
-      );
-
-      _entries.clear();
-      _addNewQuestion();
-      setState(() {
-        _isEditing = true;
-      });
-    }
-  }
-
-  Future<void> _saveToFirebase() async {
-    final guideName = _guideNameController.text.trim();
-
-    if (guideName.isEmpty || _entries.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❗ Please enter a guide title and at least one entry.")),
-      );
+      _selectedGuideId = null;
+      setState(() => _isEditing = true);
       return;
     }
 
-    for (int i = 0; i < _entries.length; i++) {
-      _entries[i] = AnswerEntry(
-        question: _questionControllers[i].text.trim(),
-        modelAnswer: _answerControllers[i].text.trim(),
-        marks: int.tryParse(_marksControllers[i].text.trim()) ?? 1,
-      );
-    }
-
-    setState(() => _isSaving = true);
-
-    try {
-      final jsonList = _entries.map((e) => e.toJson()).toList();
-
-      await FirebaseFirestore.instance.collection('marking_guides').add({
-        'title': guideName,
-        'answers': jsonList,
-        'timestamp': Timestamp.now(),
-        'userId': FirebaseAuth.instance.currentUser!.uid,
-        'source': 'manual', // Track how this guide was created
-      });
-
-      await Provider.of<DashboardProvider>(context, listen: false).fetchStats();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Marking guide saved.")),
-      );
-
-      setState(() {
-        _entries.clear();
-        _guideNameController.clear();
-        _clearControllers();
-        _isSaving = false;
-        _isEditing = false;
-        _guideDocs.clear();
-        _lastGuideDoc = null;
-        _hasMoreGuides = true;
-      });
-
-      _fetchSavedGuides(isInitial: true);
-    } catch (e) {
-      setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Save failed: $e")),
-      );
-    }
+    // Final fallback: manual entry
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("❌ Could not extract. Please enter manually.")),
+    );
+    _selectedGuideId = null;
+    _entries.clear();
+    _addNewQuestion();
+    setState(() => _isEditing = true);
   }
+}
+
+
+  Future<void> _saveToFirebase() async {
+  final guideName = _guideNameController.text.trim();
+
+  if (guideName.isEmpty || _entries.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("❗ Please enter a guide title and at least one entry.")),
+    );
+    return;
+  }
+
+  for (int i = 0; i < _entries.length; i++) {
+    _entries[i] = AnswerEntry(
+      question: _questionControllers[i].text.trim(),
+      modelAnswer: _answerControllers[i].text.trim(),
+      marks: int.tryParse(_marksControllers[i].text.trim()) ?? 1,
+    );
+  }
+
+  setState(() => _isSaving = true);
+
+  try {
+    final jsonList = _entries.map((e) => e.toJson()).toList();
+
+    final Map<String, dynamic> data = {
+      'title': guideName,
+      'answers': jsonList,
+      'timestamp': Timestamp.now(),
+      'userId': FirebaseAuth.instance.currentUser!.uid,
+    };
+
+    final collectionRef = FirebaseFirestore.instance.collection('answer_keys');
+
+    if (_isEditing && _selectedGuideId != null) {
+      final docRef = collectionRef.doc(_selectedGuideId);
+      final docSnapshot = await docRef.get();
+
+      if (docSnapshot.exists) {
+        await docRef.update(data);
+      } else {
+        // Fallback: create it instead
+        final newDoc = await collectionRef.add(data);
+        _selectedGuideId = newDoc.id;
+      }
+    } else {
+      // Create new document with only allowed fields
+      final newDoc = await collectionRef.add(data);
+      _selectedGuideId = newDoc.id;
+    }
+
+
+    await Provider.of<DashboardProvider>(context, listen: false).fetchStats();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("✅ Marking guide saved.")),
+    );
+
+    setState(() {
+      _entries.clear();
+      _guideNameController.clear();
+      _clearControllers();
+      _isSaving = false;
+      _isEditing = false;
+      _guideDocs.clear();
+      _lastGuideDoc = null;
+      _hasMoreGuides = true;
+    });
+
+    _fetchSavedGuides(isInitial: true);
+  } catch (e) {
+    setState(() => _isSaving = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("❌ Save failed: $e")),
+    );
+  }
+}
 
   void _editGuide(Map<String, dynamic> guide) {
     _entries.clear();
@@ -239,6 +276,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     _initControllersFromEntries();
 
     setState(() {
+      _selectedGuideId = guide['id']; 
       _isEditing = true;
     });
   }
@@ -255,12 +293,16 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
         return;
       }
 
-      final data = docSnapshot.data()!;
-      data['deletedAt'] = Timestamp.now();
-      data['type'] = 'markingGuide';
+
+   final data = docSnapshot.data()!;
+  data['deletedAt'] = Timestamp.now();
+  data['type'] = 'markingGuide'; // Important for History screen filtering
+  data['userId'] = FirebaseAuth.instance.currentUser!.uid; // ✅ Required by Firestore rules
+
 
       // Store in history
       await FirebaseFirestore.instance.collection('history').add(data);
+
 
       // Delete from original collection
       await docRef.delete();
@@ -284,6 +326,43 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       );
     }
   }
+
+
+List<AnswerEntry> _basicParseFallback(String text) {
+  final lines = text.split('\n');
+  final entries = <AnswerEntry>[];
+
+  String? question;
+  String? modelAnswer;
+  int marks = 1;
+
+  for (var line in lines) {
+    line = line.trim();
+
+    if (line.startsWith(RegExp(r'(Q\d+[:.])'))) {
+      if (question != null && modelAnswer != null) {
+        entries.add(AnswerEntry(question: question!, modelAnswer: modelAnswer!, marks: marks));
+      }
+      question = line.replaceFirst(RegExp(r'(Q\d+[:.])'), '').trim();
+      modelAnswer = null;
+      marks = 1;
+    } else if (line.toLowerCase().startsWith('answer:')) {
+      modelAnswer = line.replaceFirst('Answer:', '').trim();
+    } else if (line.toLowerCase().startsWith('marks:')) {
+      marks = int.tryParse(line.replaceFirst('Marks:', '').trim()) ?? 1;
+    }
+  }
+
+  // Catch the last entry
+  if (question != null && modelAnswer != null) {
+    entries.add(AnswerEntry(question: question, modelAnswer: modelAnswer, marks: marks));
+  }
+
+  return entries;
+}
+
+
+
 
   Future<void> _selectGuideForMarking(String id) async {
     final prefs = await SharedPreferences.getInstance();

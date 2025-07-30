@@ -121,39 +121,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {}); // Refresh
   }
 
-  Future<void> _deleteAccount(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Delete Account"),
-        content: const Text("This will permanently delete your account. Continue?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text("Delete"),
+ Future<void> _deleteAccount(BuildContext context) async {
+  final user = FirebaseAuth.instance.currentUser;
+  final email = user?.email;
+
+  if (user == null || email == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("No user is currently signed in.")),
+    );
+    return;
+  }
+
+  final passwordController = TextEditingController();
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text("Confirm Account Deletion"),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text("Please enter your password to confirm deletion."),
+          TextField(
+            controller: passwordController,
+            obscureText: true,
+            decoration: const InputDecoration(labelText: "Password"),
           ),
         ],
       ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text("Delete"),
+        ),
+      ],
+    ),
+  );
+
+  if (confirmed != true) return;
+
+  try {
+    final cred = EmailAuthProvider.credential(
+      email: email,
+      password: passwordController.text.trim(),
     );
 
-    if (confirmed == true) {
-      try {
-        await FirebaseAuth.instance.currentUser?.delete();
-        if (context.mounted) {
-          Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Account deleted")),
-          );
-        }
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to delete account: $e")),
-        );
-      }
+    // 🔒 Re-authenticate first
+    await user.reauthenticateWithCredential(cred);
+
+    // ✅ Now delete the account
+    await user.delete();
+
+    if (context.mounted) {
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Account deleted successfully")),
+      );
     }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Failed to delete account: $e")),
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {

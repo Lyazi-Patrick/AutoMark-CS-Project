@@ -156,9 +156,11 @@ class _ResultScreenState extends State<ResultScreen> {
       // Delete from original collection
       await FirebaseFirestore.instance.collection('results').doc(docId).delete();
 
-      setState(() {
-        _results.removeWhere((doc) => doc.id == docId);
-      });
+     setState(() {
+      _results.removeWhere((doc) => doc.id == docId);
+      // This triggers filteredResults to rebuild correctly
+      _searchQuery = _searchQuery;
+    });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✅ Result moved to history.')),

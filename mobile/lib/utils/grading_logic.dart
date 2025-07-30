@@ -10,45 +10,68 @@ Map<String, dynamic> autoGradeAnswers({
   int totalPossible = 0;
   List<Map<String, dynamic>> details = [];
 
+  // Combine all student answers into one lowercased string for rawText checks
+  final allStudentAnswersText = studentAnswers.join(" ").toLowerCase();
+
   for (int i = 0; i < answerKey.length; i++) {
     final item = answerKey[i];
-    final question = item['question'];
-    final modelAnswer = item['modelAnswer'];
     final marks = (item['marks'] as num?)?.toInt() ?? 1; // Default to 1 if null
 
-    String studentAnswer = (i < studentAnswers.length) ? studentAnswers[i] : "";
+    if (item.containsKey('question') && item.containsKey('modelAnswer')) {
+      final question = item['question'];
+      final modelAnswer = item['modelAnswer'];
 
-    final cleanedStudentAnswer = _clean(studentAnswer);
-    final cleanedModelAnswer = _clean(modelAnswer);
+      String studentAnswer = (i < studentAnswers.length) ? studentAnswers[i] : "";
 
-    // Simple similarity score
-    final similarity = cleanedStudentAnswer.similarityTo(cleanedModelAnswer);
+      final cleanedStudentAnswer = _clean(studentAnswer);
+      final cleanedModelAnswer = _clean(modelAnswer);
 
-    // Simple keyword matching
-    final modelKeywords = modelAnswer.split(RegExp(r'[\s,.]+')).where((w) => w.length > 3).toList();
-    final matchedKeywords = modelKeywords.where((kw) => cleanedStudentAnswer.contains(kw.toLowerCase())).length;
-    final keywordRatio = (modelKeywords.isEmpty) ? 0.0 : (matchedKeywords / modelKeywords.length);
+      // Simple similarity score
+      final similarity = cleanedStudentAnswer.similarityTo(cleanedModelAnswer);
 
-    // Score decision
-    double rawScoreRatio = (0.5 * similarity) + (0.5 * keywordRatio);
-    int awardedMarks = (rawScoreRatio * marks).round();
+      // Simple keyword matching
+      final modelKeywords = modelAnswer.split(RegExp(r'[\s,.]+')).where((w) => w.length > 3).toList();
+      final matchedKeywords = modelKeywords.where((kw) => cleanedStudentAnswer.contains(kw.toLowerCase())).length;
+      final keywordRatio = (modelKeywords.isEmpty) ? 0.0 : (matchedKeywords / modelKeywords.length);
 
-    totalScore += awardedMarks;
-    totalPossible += marks;
+      // Score decision
+      double rawScoreRatio = (0.5 * similarity) + (0.5 * keywordRatio);
+      int awardedMarks = (rawScoreRatio * marks).round();
 
-    // Feedback
-    final feedback = "Similarity: ${(similarity * 100).toStringAsFixed(1)}%, "
-        "Keywords matched: ${(keywordRatio * 100).toStringAsFixed(1)}%. "
-        "Score: $awardedMarks/$marks";
+      totalScore += awardedMarks;
+      totalPossible += marks;
 
-    details.add({
-      "question": question,
-      "modelAnswer": modelAnswer,
-      "studentAnswer": studentAnswer,
-      "allocatedMarks": marks,
-      "score": awardedMarks,
-      "feedback": feedback,
-    });
+      // Feedback
+      final feedback = "Similarity: ${(similarity * 100).toStringAsFixed(1)}%, "
+          "Keywords matched: ${(keywordRatio * 100).toStringAsFixed(1)}%. "
+          "Score: $awardedMarks/$marks";
+
+      details.add({
+        "question": question,
+        "modelAnswer": modelAnswer,
+        "studentAnswer": studentAnswer,
+        "allocatedMarks": marks,
+        "score": awardedMarks,
+        "feedback": feedback,
+      });
+    } else if (item.containsKey('rawText')) {
+      final rawText = (item['rawText'] ?? '').toLowerCase();
+
+      final containsRaw = allStudentAnswersText.contains(rawText);
+      final awardedMarks = containsRaw ? marks : 0;
+
+      totalScore += awardedMarks;
+      totalPossible += marks;
+
+      details.add({
+        "question": null,
+        "modelAnswer": null,
+        "studentAnswer": containsRaw ? rawText : "",
+        "allocatedMarks": marks,
+        "score": awardedMarks,
+        "feedback": containsRaw ? "Raw text matched in student answers." : "Raw text not found.",
+      });
+    }
   }
 
   return {

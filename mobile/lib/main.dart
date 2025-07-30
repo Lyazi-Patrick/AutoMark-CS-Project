@@ -23,6 +23,7 @@ import 'screens/profile_screen.dart';
 import 'screens/marked_scripts.dart';
 import 'screens/downloads_screen.dart';
 import 'screens/history_screen.dart';
+import 'screens/review_script.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load();
@@ -70,6 +71,12 @@ class AutoMarkApp extends StatelessWidget {
           '/payments':(context) => const AuthGuard(child: PaymentsScreen()),
           '/downloads': (context) => const AuthGuard(child: DownloadsScreen()),
           '/history':(context) => const AuthGuard(child: HistoryScreen()),
+          '/reviewScript': (context) {
+            final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+            return AuthGuard(
+              child: ReviewScriptScreen(scriptId: args['docId']),
+            );
+          },
         },
       ),
     );
