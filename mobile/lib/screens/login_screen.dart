@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'forgotpasswordscreen.dart'; // Make sure the file name is very correct
+import 'forgotpasswordscreen.dart'; // Make sure the file name is very correct.
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
