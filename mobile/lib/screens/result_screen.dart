@@ -43,7 +43,7 @@ class _ResultScreenState extends State<ResultScreen> {
       final data = doc.data() as Map<String, dynamic>;
       final score = (data['score'] ?? 0).toDouble();
       final totalMarks =
-          (data['total'] ?? 100).toDouble(); // Default to 100 if not specified.
+          (data['total'] ?? 100).toDouble(); // Default to 100 if not specified
       final percentage = (score / totalMarks) * 100;
       return sum + percentage;
     });
