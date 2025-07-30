@@ -18,7 +18,7 @@ class DashboardProvider extends ChangeNotifier {
       final currentUser = FirebaseAuth.instance.currentUser;
 
       if (currentUser == null) {
-        // Incase of No user logged in and clear statatistcs
+        // Incase of No user logged in and clear statatistcs.
         marked = 0;
         unmarked = 0;
         total = 0;
