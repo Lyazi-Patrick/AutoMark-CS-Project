@@ -21,7 +21,7 @@ class ResultProvider with ChangeNotifier {
 
   int get totalSubmissions => _results.length;
 
-  /// Fetch results from Firestore
+  /// Fetch results from Firestore....
   Future<void> fetchResults() async {
     _isLoading = true;
     notifyListeners();
