@@ -43,76 +43,83 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
- Future<void> _fetchDeletedScripts({bool initialLoad = false}) async {
-  final currentUser = FirebaseAuth.instance.currentUser;
-  if (currentUser == null) {
-    // User not logged in, so stop loading
-    setState(() {
-      _deletedScripts.clear();
-      _hasMore = false;
-      _isLoadingMore = false;
-    });
-    return;
-  }
-
-  if (initialLoad) {
-    setState(() {
-      _deletedScripts.clear();
-      _lastDocument = null;
-      _hasMore = true;
-    });
-  }
-
-  if (!_hasMore || _isLoadingMore) return;
-
-  setState(() => _isLoadingMore = true);
-
-  try {
-    Query query = FirebaseFirestore.instance
-        .collection('history')
-        .where('userId', isEqualTo: currentUser.uid)  // <-- Only current user docs
-        .orderBy('deletedAt', descending: true)
-        .limit(_limit);
-
-    if (_lastDocument != null) {
-      query = query.startAfterDocument(_lastDocument!);
-    }
-
-    final snapshot = await query.get();
-
-    if (snapshot.docs.isNotEmpty) {
-      final newScripts = snapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>?;
-
-        if (data == null) return null;
-
-        return {
-          'id': doc.id,
-          'name': data['name'] ?? 'Unnamed Student',
-          'ocrText': data['ocrText'] ?? '',
-          'deletedAt': data['deletedAt'],
-        };
-      }).whereType<Map<String, dynamic>>().toList();
-
+  Future<void> _fetchDeletedScripts({bool initialLoad = false}) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      // Users not logged in, so stop loading
       setState(() {
-        _deletedScripts.addAll(newScripts);
-        _lastDocument = snapshot.docs.last;
-        _hasMore = snapshot.docs.length == _limit;
-      });
-    } else {
-      setState(() {
+        _deletedScripts.clear();
         _hasMore = false;
+        _isLoadingMore = false;
+      });
+      return;
+    }
+
+    if (initialLoad) {
+      setState(() {
+        _deletedScripts.clear();
+        _lastDocument = null;
+        _hasMore = true;
       });
     }
-  } catch (e, stackTrace) {
-    debugPrint("Error fetching deleted scripts: $e\n$stackTrace");
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Failed to fetch scripts: $e")),
-    );
-  } finally {
-    setState(() => _isLoadingMore = false);
+
+    if (!_hasMore || _isLoadingMore) return;
+
+    setState(() => _isLoadingMore = true);
+
+    try {
+      Query query = FirebaseFirestore.instance
+          .collection('history')
+          .where(
+            'userId',
+            isEqualTo: currentUser.uid,
+          ) // <-- Only current user docs
+          .orderBy('deletedAt', descending: true)
+          .limit(_limit);
+
+      if (_lastDocument != null) {
+        query = query.startAfterDocument(_lastDocument!);
+      }
+
+      final snapshot = await query.get();
+
+      if (snapshot.docs.isNotEmpty) {
+        final newScripts =
+            snapshot.docs
+                .map((doc) {
+                  final data = doc.data() as Map<String, dynamic>?;
+
+                  if (data == null) return null;
+
+                  return {
+                    'id': doc.id,
+                    'name': data['name'] ?? 'Unnamed Student',
+                    'ocrText': data['ocrText'] ?? '',
+                    'deletedAt': data['deletedAt'],
+                  };
+                })
+                .whereType<Map<String, dynamic>>()
+                .toList();
+
+        setState(() {
+          _deletedScripts.addAll(newScripts);
+          _lastDocument = snapshot.docs.last;
+          _hasMore = snapshot.docs.length == _limit;
+        });
+      } else {
+        setState(() {
+          _hasMore = false;
+        });
+      }
+    } catch (e, stackTrace) {
+      debugPrint("Error fetching deleted scripts: $e\n$stackTrace");
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to fetch scripts: $e")));
+    } finally {
+      setState(() => _isLoadingMore = false);
+    }
   }
-}
 
   String formatTimestamp(Timestamp? timestamp) {
     if (timestamp == null) return 'Unknown';
@@ -121,209 +128,242 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _permanentlyDeleteScript(String docId) async {
-  final confirm = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text("Permanently Delete Script"),
-      content: const Text(
-        "This will permanently delete the script from history. This action cannot be undone."),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel")),
-        TextButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text("Delete", style: TextStyle(color: Colors.red)),
-        ),
-      ],
-    ),
-  );
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text("Permanently Delete Script"),
+            content: const Text(
+              "This will permanently delete the script from history. This action cannot be undone.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text(
+                  "Delete",
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+    );
 
-  if (confirm != true) return;
+    if (confirm != true) return;
 
-  final currentUser = FirebaseAuth.instance.currentUser;
-  if (currentUser == null) return;
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
 
-  try {
-    // Step 1: Check ownership first
-    final doc = await FirebaseFirestore.instance.collection('history').doc(docId).get();
-    if (!doc.exists) throw Exception("Document does not exist");
+    try {
+      // Step 1: Check ownership first
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('history')
+              .doc(docId)
+              .get();
+      if (!doc.exists) throw Exception("Document does not exist");
 
-    final docUserId = doc.data()?['userId'];
-    if (docUserId != currentUser.uid) {
-      throw Exception("Not authorized to delete this document");
+      final docUserId = doc.data()?['userId'];
+      if (docUserId != currentUser.uid) {
+        throw Exception("Not authorized to delete this document");
+      }
+
+      // Step 2: Delete
+      await FirebaseFirestore.instance
+          .collection('history')
+          .doc(docId)
+          .delete();
+
+      // Step 3: Optimistically update UI
+      setState(() {
+        _deletedScripts.removeWhere((script) => script['id'] == docId);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Script permanently deleted.")),
+      );
+    } catch (e, stackTrace) {
+      debugPrint("Failed to permanently delete: $e\n$stackTrace");
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to delete script: $e")));
+      _fetchDeletedScripts(initialLoad: true); // Optionally reload
     }
+  }
 
-    // Step 2: Delete
-    await FirebaseFirestore.instance.collection('history').doc(docId).delete();
+  Future<void> _restoreScript(String docId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text("Restore Script"),
+            content: const Text(
+              "This will restore the item to its original state.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text("Restore"),
+              ),
+            ],
+          ),
+    );
 
-    // Step 3: Optimistically update UI
+    if (confirm != true) return;
+
     setState(() {
       _deletedScripts.removeWhere((script) => script['id'] == docId);
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Script permanently deleted.")),
-    );
-  } catch (e, stackTrace) {
-    debugPrint("Failed to permanently delete: $e\n$stackTrace");
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Failed to delete script: $e")),
-    );
-    _fetchDeletedScripts(initialLoad: true); // Optionally reload
-  }
-}
+    try {
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('history')
+              .doc(docId)
+              .get();
 
+      if (!doc.exists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Item not found in history.")),
+        );
+        return;
+      }
 
-  Future<void> _restoreScript(String docId) async {
-  final confirm = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text("Restore Script"),
-      content: const Text("This will restore the item to its original state."),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel")),
-        TextButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text("Restore"),
-        ),
-      ],
-    ),
-  );
+      final data = doc.data()!;
+      final restoredData = Map<String, dynamic>.from(data);
 
-  if (confirm != true) return;
+      // Remove history-specific fields
+      restoredData.remove('deletedAt');
+      restoredData.remove('originalId');
+      restoredData.remove('status');
 
-  setState(() {
-    _deletedScripts.removeWhere((script) => script['id'] == docId);
-  });
+      final type = data['type'];
+      final originalStatus = data['originalStatus'];
 
-  try {
-    final doc = await FirebaseFirestore.instance.collection('history').doc(docId).get();
+      if (type == 'markingGuide') {
+        await FirebaseFirestore.instance
+            .collection('answer_keys')
+            .add(restoredData);
+      } else if (type == 'script') {
+        // Restore to scripts with original status
+        restoredData['status'] = originalStatus ?? 'unmarked';
+        await FirebaseFirestore.instance
+            .collection('scripts')
+            .add(restoredData);
+      } else if (type == 'result') {
+        await FirebaseFirestore.instance
+            .collection('results')
+            .add(restoredData);
+      }
 
-    if (!doc.exists) {
+      // Delete from history
+      await FirebaseFirestore.instance
+          .collection('history')
+          .doc(docId)
+          .delete();
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Item not found in history.")),
+        const SnackBar(content: Text("Item restored successfully.")),
       );
-      return;
+    } catch (e, stackTrace) {
+      debugPrint("Failed to restore item: $e\n$stackTrace");
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to restore: $e")));
+      _fetchDeletedScripts(initialLoad: true);
     }
-
-    final data = doc.data()!;
-    final restoredData = Map<String, dynamic>.from(data);
-
-    // Remove history-specific fields
-    restoredData.remove('deletedAt');
-    restoredData.remove('originalId');
-    restoredData.remove('status');
-
-    final type = data['type'];
-    final originalStatus = data['originalStatus'];
-
-    if (type == 'markingGuide') {
-      await FirebaseFirestore.instance
-          .collection('answer_keys')
-          .add(restoredData);
-    } else if (type == 'script') {
-      // Restore to scripts with original status
-      restoredData['status'] = originalStatus ?? 'unmarked';
-      await FirebaseFirestore.instance
-          .collection('scripts')
-          .add(restoredData);
-    } else if (type == 'result') {
-      await FirebaseFirestore.instance
-          .collection('results')
-          .add(restoredData);
-    }
-
-    // Delete from history
-    await FirebaseFirestore.instance.collection('history').doc(docId).delete();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Item restored successfully.")),
-    );
-  } catch (e, stackTrace) {
-    debugPrint("Failed to restore item: $e\n$stackTrace");
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Failed to restore: $e")),
-    );
-    _fetchDeletedScripts(initialLoad: true);
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Deleted Scripts History"),
-      ),
+      appBar: AppBar(title: const Text("Deleted Scripts History")),
       body: RefreshIndicator(
         onRefresh: () => _fetchDeletedScripts(initialLoad: true),
-        child: _deletedScripts.isEmpty && !_isLoadingMore
-            ? const Center(child: Text("No deleted scripts found."))
-            : ListView.builder(
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(),
-                itemCount: _deletedScripts.length + (_hasMore ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (index == _deletedScripts.length) {
-                    // Show loading indicator at bottom when fetching more
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      child: Center(child: CircularProgressIndicator()),
+        child:
+            _deletedScripts.isEmpty && !_isLoadingMore
+                ? const Center(child: Text("No deleted scripts found."))
+                : ListView.builder(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  itemCount: _deletedScripts.length + (_hasMore ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index == _deletedScripts.length) {
+                      // Show loading indicator at bottom when fetching more
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+
+                    final script = _deletedScripts[index];
+                    final preview = script['ocrText'] ?? '';
+                    final deletedAt = script['deletedAt'] as Timestamp?;
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: ListTile(
+                        leading: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.redAccent,
+                        ),
+                        title: Text(script['name'] ?? 'Unnamed Student'),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 4),
+                            Text(
+                              preview.length > 100
+                                  ? '${preview.substring(0, 100)}...'
+                                  : preview,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Deleted: ${formatTimestamp(deletedAt)}",
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                        isThreeLine: true,
+                        trailing: PopupMenuButton<String>(
+                          onSelected: (value) {
+                            if (value == 'restore') {
+                              _restoreScript(script['id']);
+                            } else if (value == 'delete') {
+                              _permanentlyDeleteScript(script['id']);
+                            }
+                          },
+                          itemBuilder:
+                              (context) => [
+                                const PopupMenuItem(
+                                  value: 'restore',
+                                  child: Text('Restore'),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Text('Delete Permanently'),
+                                ),
+                              ],
+                        ),
+                      ),
                     );
-                  }
-
-                  final script = _deletedScripts[index];
-                  final preview = script['ocrText'] ?? '';
-                  final deletedAt = script['deletedAt'] as Timestamp?;
-
-                  return Card(
-                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: ListTile(
-                      leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                      title: Text(script['name'] ?? 'Unnamed Student'),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 4),
-                          Text(
-                            preview.length > 100 ? '${preview.substring(0, 100)}...' : preview,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "Deleted: ${formatTimestamp(deletedAt)}",
-                            style: const TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                      isThreeLine: true,
-                      trailing: PopupMenuButton<String>(
-                        onSelected: (value) {
-                          if (value == 'restore') {
-                            _restoreScript(script['id']);
-                          } else if (value == 'delete') {
-                            _permanentlyDeleteScript(script['id']);
-                          }
-                        },
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'restore',
-                            child: Text('Restore'),
-                          ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Text('Delete Permanently'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
+                  },
+                ),
       ),
     );
   }
