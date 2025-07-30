@@ -29,7 +29,7 @@ class DownloadsScreen extends StatelessWidget {
           .doc(docId)
           .delete();
 
-      // Delete the local file if exists
+      // Deletes the local file if exists
       final file = File(filePath);
       if (await file.exists()) {
         await file.delete();
@@ -50,10 +50,11 @@ class DownloadsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text("Downloaded Reports")),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('downloads')
-            .orderBy('timestamp', descending: true)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection('downloads')
+                .orderBy('timestamp', descending: true)
+                .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -92,8 +93,8 @@ class DownloadsScreen extends StatelessWidget {
                     ),
                     IconButton(
                       icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () =>
-                          _deleteDownload(doc.id, filePath, context),
+                      onPressed:
+                          () => _deleteDownload(doc.id, filePath, context),
                     ),
                   ],
                 ),
