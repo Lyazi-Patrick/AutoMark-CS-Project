@@ -129,7 +129,7 @@ class _UploadScriptScreenState extends State<UploadScriptScreen> {
   Future<void> _saveScript({bool goToMarking = false}) async {
   final currentUser = FirebaseAuth.instance.currentUser;
   if (currentUser == null) {
-    _showSnackBar("❌ User not logged in.", isError: true);
+    _showSnackBar("User not logged in.", isError: true);
     return;
   }
 
@@ -153,7 +153,7 @@ class _UploadScriptScreenState extends State<UploadScriptScreen> {
       'userId': currentUser.uid,   
     });
 
-    _showSnackBar("✅ Script saved successfully!");
+    _showSnackBar("Script saved successfully!");
 
     if (goToMarking) {
       Navigator.push(
@@ -175,7 +175,7 @@ class _UploadScriptScreenState extends State<UploadScriptScreen> {
       _clearForm();
     }
   } catch (e) {
-    _showSnackBar("❌ Failed to save: $e", isError: true);
+    _showSnackBar("Failed to save: $e", isError: true);
   }
 }
 

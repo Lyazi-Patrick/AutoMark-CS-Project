@@ -227,7 +227,7 @@ class _UnmarkedScriptsScreenState extends State<UnmarkedScriptsScreen> {
 
       await batch.commit();
 
-      _showSnackBar("✅ All unmarked scripts moved to history.");
+      _showSnackBar("All unmarked scripts moved to history.");
       _fetchScripts(initialLoad: true);
       await Provider.of<DashboardProvider>(context, listen: false).fetchStats();
     } catch (e) {

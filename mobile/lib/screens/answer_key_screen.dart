@@ -152,7 +152,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     _initControllersFromEntries();
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("✅ Marking guide extracted successfully.")),
+      const SnackBar(content: Text("Marking guide extracted successfully.")),
     );
 
     _selectedGuideId = null;
@@ -168,7 +168,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       _initControllersFromEntries();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Fallback parser used for marking guide.")),
+        const SnackBar(content: Text("Fallback parser used for marking guide.")),
       );
       _selectedGuideId = null;
       setState(() => _isEditing = true);
@@ -177,7 +177,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
 
     // Final fallback: manual entry
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("❌ Could not extract. Please enter manually.")),
+      const SnackBar(content: Text("Could not extract. Please enter manually.")),
     );
     _selectedGuideId = null;
     _entries.clear();
@@ -192,7 +192,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
 
   if (guideName.isEmpty || _entries.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("❗ Please enter a guide title and at least one entry.")),
+      const SnackBar(content: Text("Please enter a guide title and at least one entry.")),
     );
     return;
   }
@@ -240,7 +240,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     await Provider.of<DashboardProvider>(context, listen: false).fetchStats();
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("✅ Marking guide saved.")),
+      const SnackBar(content: Text("Marking guide saved.")),
     );
 
     setState(() {
@@ -258,7 +258,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
   } catch (e) {
     setState(() => _isSaving = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("❌ Save failed: $e")),
+      SnackBar(content: Text("Save failed: $e")),
     );
   }
 }
@@ -295,7 +295,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
    final data = docSnapshot.data()!;
   data['deletedAt'] = Timestamp.now();
   data['type'] = 'markingGuide'; // Important for History screen filtering
-  data['userId'] = FirebaseAuth.instance.currentUser!.uid; // ✅ Required by Firestore rules
+  data['userId'] = FirebaseAuth.instance.currentUser!.uid; //  Required by Firestore rules
 
   // Store in history
   await FirebaseFirestore.instance.collection('history').add(data);
@@ -304,7 +304,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     await docRef.delete();
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("🗑️ Guide moved to history.")),
+      const SnackBar(content: Text("Guide moved to history.")),
     );
 
     await Provider.of<DashboardProvider>(context, listen: false).fetchStats();
@@ -363,7 +363,7 @@ List<AnswerEntry> _basicParseFallback(String text) {
     await prefs.setString('selected_guide_id', id);
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("✅ Guide selected for marking.")),
+      const SnackBar(content: Text("Guide selected for marking.")),
     );
 
     setState(() {

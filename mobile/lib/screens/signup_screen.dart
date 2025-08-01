@@ -68,7 +68,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             key: _formKey,
             child: Column(
               children: [
-                // 🔵 App Logo
+                //App Logo
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -92,7 +92,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 Image.asset('assets/images/upload.jpg', height: 100),
                 const SizedBox(height: 30),
 
-                // 🔤 Name
+                //Name
                 TextFormField(
                   controller: _nameController,
                   decoration: const InputDecoration(
@@ -105,7 +105,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
                 const SizedBox(height: 15),
 
-                // 📧 Email
+                //Email
                 TextFormField(
                   controller: _emailController,
                   decoration: const InputDecoration(
@@ -118,7 +118,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
                 const SizedBox(height: 15),
 
-                // 🔒 Password
+                //Password
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -145,7 +145,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
                 const SizedBox(height: 15),
 
-                // 🔒 Confirm Password
+                //Confirm Password
                 TextFormField(
                   controller: _confirmPasswordController,
                   obscureText: _obscureConfirmPassword,
@@ -173,7 +173,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
                 const SizedBox(height: 30),
 
-                // 🔘 Sign Up Button
+                //Sign Up Button
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -185,7 +185,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
                 const SizedBox(height: 15),
 
-                // 🔁 Already have account
+                //Already have account
                 TextButton(
                   onPressed: () {
                     Navigator.pop(context);

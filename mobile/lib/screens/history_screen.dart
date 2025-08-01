@@ -70,7 +70,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   try {
     Query query = FirebaseFirestore.instance
         .collection('history')
-        .where('userId', isEqualTo: currentUser.uid)  // <-- Only current user docs
+        .where('userId', isEqualTo: currentUser.uid)  // Only current user docs
         .orderBy('deletedAt', descending: true)
         .limit(_limit);
 
