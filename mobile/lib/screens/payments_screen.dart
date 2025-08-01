@@ -3,7 +3,6 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../services/token_manager.dart';
 import '../services/momo_service.dart';
 
-
 class PaymentsScreen extends StatefulWidget {
   const PaymentsScreen({super.key});
 
@@ -12,55 +11,54 @@ class PaymentsScreen extends StatefulWidget {
 }
 
 class _PaymentsScreenState extends State<PaymentsScreen> {
-  bool isPremium = false; // This will later be fetched from Firestore or API
+  bool isPremium = false; // This will later be fetched from Firestore or API.
 
-void _startPaymentProcess() async {
-  try {
-    final subscriptionKey = dotenv.env['SUBSCRIPTION_KEY'];
-    if (subscriptionKey == null) {
-      throw Exception('Missing SUBSCRIPTION_KEY in .env');
+  void _startPaymentProcess() async {
+    try {
+      final subscriptionKey = dotenv.env['SUBSCRIPTION_KEY'];
+      if (subscriptionKey == null) {
+        throw Exception('Missing SUBSCRIPTION_KEY in .env');
+      }
+
+      final tokenManager = TokenManager();
+      final momoService = MomoService(
+        tokenManager: tokenManager,
+        subscriptionKey: subscriptionKey,
+      );
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Starting payment...")));
+
+      final transactionId = await momoService.requestToPay(
+        amount: '1000',
+        currency: 'EUR', // Use UGX in production only
+        externalId: '123456',
+        payerNumber: '256753123456', // Format: country code + number
+        payerMessage: 'Thanks for upgrading!',
+        payeeNote: 'Payment for premium plan',
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Payment initiated. Transaction ID: $transactionId"),
+        ),
+      );
+
+      setState(() {
+        isPremium = true;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Payment failed: $e")));
     }
-
-    final tokenManager = TokenManager();
-    final momoService = MomoService(
-      tokenManager: tokenManager,
-      subscriptionKey: subscriptionKey,
-    );
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Starting payment...")),
-    );
-
-    final transactionId = await momoService.requestToPay(
-      amount: '1000',
-      currency: 'EUR', // Use UGX in production only
-      externalId: '123456',
-      payerNumber: '256753123456', // Format: country code + number
-      payerMessage: 'Thanks for upgrading!',
-      payeeNote: 'Payment for premium plan',
-    );
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Payment initiated. Transaction ID: $transactionId")),
-    );
-
-    setState(() {
-      isPremium = true;
-    });
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Payment failed: $e")),
-    );
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Upgrade to Premium"),
-      ),
+      appBar: AppBar(title: const Text("Upgrade to Premium")),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -87,11 +85,14 @@ void _startPaymentProcess() async {
                 icon: const Icon(Icons.payment),
                 label: const Text("Upgrade with MTN MoMo"),
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
                   backgroundColor: Colors.green,
                 ),
               ),
-            )
+            ),
           ],
         ),
       ),

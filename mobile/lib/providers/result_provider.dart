@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/answer_entry.dart';
-import '../utils/grading_logic.dart'; // Updated grading logic with autoGradeAnswers
+import '../utils/grading_logic.dart'; // Updated grading logic with autoGradeAnswers.
 
 class ResultProvider with ChangeNotifier {
   final List<Map<String, dynamic>> _results = [];
@@ -21,7 +21,7 @@ class ResultProvider with ChangeNotifier {
 
   int get totalSubmissions => _results.length;
 
-  /// Fetch results from Firestore
+  /// Fetch results from Firestore....
   Future<void> fetchResults() async {
     _isLoading = true;
     notifyListeners();

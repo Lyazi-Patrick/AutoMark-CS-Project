@@ -33,7 +33,7 @@ class MarkingGuideProvider with ChangeNotifier {
   List<MarkingGuide> get allGuides => _allGuides;
   MarkingGuide? get selectedGuide => _selectedGuide;
 
-  /// Loads all guides from Firestore (answer_keys collection)
+  /// Loads all guides from Firestore (answer_keys collection).
   Future<void> fetchGuides() async {
     final snapshot = await FirebaseFirestore.instance.collection('answer_keys').get();
 
@@ -44,7 +44,7 @@ class MarkingGuideProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Select guide for marking
+  /// Select a guide for marking in the app
   void setSelectedGuide(MarkingGuide guide) {
     _selectedGuide = guide;
     notifyListeners();

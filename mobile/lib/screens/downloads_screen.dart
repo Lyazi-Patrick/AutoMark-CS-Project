@@ -11,44 +11,50 @@ class DownloadsScreen extends StatelessWidget {
     if (await file.exists()) {
       await OpenFile.open(path);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("File not found.")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("File not found.")));
     }
   }
 
-  Future<void> _deleteDownload(String docId, String filePath, BuildContext context) async {
+  Future<void> _deleteDownload(
+    String docId,
+    String filePath,
+    BuildContext context,
+  ) async {
     try {
-      // Delete Firestore record
-      await FirebaseFirestore.instance.collection('downloads').doc(docId).delete();
+      // Deletes Firestore record
+      await FirebaseFirestore.instance
+          .collection('downloads')
+          .doc(docId)
+          .delete();
 
-      // Delete the local file if exists
+      // Deletes the local file if they exists
       final file = File(filePath);
       if (await file.exists()) {
         await file.delete();
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Download deleted.")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Download deleted.")));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error deleting: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error deleting: $e")));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Downloaded Reports"),
-      ),
+      appBar: AppBar(title: const Text("Downloaded Reports")),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('downloads')
-            .orderBy('timestamp', descending: true)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection('downloads')
+                .orderBy('timestamp', descending: true)
+                .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -87,7 +93,8 @@ class DownloadsScreen extends StatelessWidget {
                     ),
                     IconButton(
                       icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteDownload(doc.id, filePath, context),
+                      onPressed:
+                          () => _deleteDownload(doc.id, filePath, context),
                     ),
                   ],
                 ),

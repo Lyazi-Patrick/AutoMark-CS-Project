@@ -42,7 +42,8 @@ class _ResultScreenState extends State<ResultScreen> {
     double total = docs.fold(0, (double sum, doc) {
       final data = doc.data() as Map<String, dynamic>;
       final score = (data['score'] ?? 0).toDouble();
-      final totalMarks = (data['total'] ?? 100).toDouble(); // Default to 100 if not specified
+      final totalMarks =
+          (data['total'] ?? 100).toDouble(); // Default to 100 if not specified
       final percentage = (score / totalMarks) * 100;
       return sum + percentage;
     });
@@ -97,15 +98,16 @@ class _ResultScreenState extends State<ResultScreen> {
     if (currentUser == null) return;
 
     try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Generating PDF report...')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Generating PDF report...')));
 
-      final snapshot = await FirebaseFirestore.instance
-          .collection('results')
-          .where('userId', isEqualTo: currentUser.uid)
-          .orderBy('timestamp', descending: true)
-          .get();
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('results')
+              .where('userId', isEqualTo: currentUser.uid)
+              .orderBy('timestamp', descending: true)
+              .get();
 
       final docs = snapshot.docs;
 
@@ -119,23 +121,29 @@ class _ResultScreenState extends State<ResultScreen> {
       await PDFGenerator.generateAndPrintReport(docs);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('PDF report generated and saved successfully!')),
+        const SnackBar(
+          content: Text('PDF report generated and saved successfully!'),
+        ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to generate report: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to generate report: $e')));
     }
   }
 
   Future<void> _deleteSingleResult(String docId) async {
     try {
-      final docSnapshot = await FirebaseFirestore.instance.collection('results').doc(docId).get();
+      final docSnapshot =
+          await FirebaseFirestore.instance
+              .collection('results')
+              .doc(docId)
+              .get();
 
       if (!docSnapshot.exists) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('❌ Result not found.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('❌ Result not found.')));
         return;
       }
 
@@ -151,16 +159,22 @@ class _ResultScreenState extends State<ResultScreen> {
       };
 
       // Save to history first
-      await FirebaseFirestore.instance.collection('history').doc(docId).set(historyData);
+      await FirebaseFirestore.instance
+          .collection('history')
+          .doc(docId)
+          .set(historyData);
 
       // Delete from original collection
-      await FirebaseFirestore.instance.collection('results').doc(docId).delete();
+      await FirebaseFirestore.instance
+          .collection('results')
+          .doc(docId)
+          .delete();
 
-     setState(() {
-      _results.removeWhere((doc) => doc.id == docId);
-      // This triggers filteredResults to rebuild correctly
-      _searchQuery = _searchQuery;
-    });
+      setState(() {
+        _results.removeWhere((doc) => doc.id == docId);
+        // This triggers filteredResults to rebuild correctly
+        _searchQuery = _searchQuery;
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✅ Result moved to history.')),
@@ -168,15 +182,15 @@ class _ResultScreenState extends State<ResultScreen> {
 
       await Provider.of<DashboardProvider>(context, listen: false).fetchStats();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Failed to delete result: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('❌ Failed to delete result: $e')));
     }
   }
 
   List<QueryDocumentSnapshot> _filterResults() {
     if (_searchQuery.isEmpty) return _results;
-    
+
     return _results.where((doc) {
       final data = doc.data() as Map<String, dynamic>;
       final name = (data['name'] ?? '').toString().toLowerCase();
@@ -194,18 +208,17 @@ class _ResultScreenState extends State<ResultScreen> {
         decoration: InputDecoration(
           hintText: 'Search by name or student number...',
           prefixIcon: const Icon(Icons.search),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          suffixIcon: _searchQuery.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() => _searchQuery = '');
-                  },
-                )
-              : null,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          suffixIcon:
+              _searchQuery.isNotEmpty
+                  ? IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _searchQuery = '');
+                    },
+                  )
+                  : null,
         ),
         onChanged: (value) => setState(() => _searchQuery = value),
       ),
@@ -218,18 +231,31 @@ class _ResultScreenState extends State<ResultScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Class Performance",
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+          Text(
+            "Class Performance",
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Average Score: $avgScore%", style: const TextStyle(fontWeight: FontWeight.w600)),
-              Text("Submissions: ${_results.length}", style: const TextStyle(fontWeight: FontWeight.w600)),
+              Text(
+                "Average Score: $avgScore%",
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              Text(
+                "Submissions: ${_results.length}",
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
             ],
           ),
           const Divider(height: 30),
-          const Text("Student Scores", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text(
+            "Student Scores",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 10),
         ],
       ),
@@ -262,21 +288,36 @@ class _ResultScreenState extends State<ResultScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
                 if (number.isNotEmpty) ...[
                   const SizedBox(height: 4),
-                  Text("Student No: $number", style: const TextStyle(fontSize: 14)),
+                  Text(
+                    "Student No: $number",
+                    style: const TextStyle(fontSize: 14),
+                  ),
                 ],
                 const SizedBox(height: 4),
-                Text("Score: ${score.toStringAsFixed(score % 1 == 0 ? 0 : 2)}/${total.toStringAsFixed(total % 1 == 0 ? 0 : 2)} ($percentage%)",
-                    style: const TextStyle(fontSize: 14)),
+                Text(
+                  "Score: ${score.toStringAsFixed(score % 1 == 0 ? 0 : 2)}/${total.toStringAsFixed(total % 1 == 0 ? 0 : 2)} ($percentage%)",
+                  style: const TextStyle(fontSize: 14),
+                ),
                 const SizedBox(height: 4),
-                Text("Method: ${method.toUpperCase()}",
-                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(
+                  "Method: ${method.toUpperCase()}",
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
                 if (feedback.isNotEmpty) ...[
                   const SizedBox(height: 4),
-                  Text("Feedback: $feedback",
-                      style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                  Text(
+                    "Feedback: $feedback",
+                    style: const TextStyle(fontSize: 12, color: Colors.black87),
+                  ),
                 ],
               ],
             ),
@@ -289,8 +330,14 @@ class _ResultScreenState extends State<ResultScreen> {
                   color: _getPercentageColor(double.parse(percentage)),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text("$percentage%",
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+                child: Text(
+                  "$percentage%",
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.delete, color: Colors.red),
@@ -333,50 +380,62 @@ class _ResultScreenState extends State<ResultScreen> {
         ],
       ),
       drawer: const CustomDrawer(),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                _buildSearchBar(),
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: _loadInitialResults,
-                    child: _results.isEmpty
-                        ? const Center(child: Text("No results available yet."))
-                        : ListView.builder(
-                            itemCount: filteredResults.isEmpty 
-                                ? 2 // For header and "no results" message
-                                : filteredResults.length + 1 + (_hasMore ? 1 : 0),
-                            itemBuilder: (context, index) {
-                              if (index == 0) {
-                                return _buildSummaryHeader(avgScore);
-                              }
-                              
-                              if (filteredResults.isEmpty) {
-                                return const Center(
-                                  child: Padding(
-                                    padding: EdgeInsets.all(16.0),
-                                    child: Text("No results match your search."),
-                                  ),
-                                );
-                              }
-                              
-                              if (_hasMore && index == filteredResults.length + 1) {
-                                _fetchResults();
-                                return const Padding(
-                                  padding: EdgeInsets.all(12),
-                                  child: Center(child: CircularProgressIndicator()),
-                                );
-                              }
-                              
-                              final doc = filteredResults[index - 1];
-                              return _buildResultCard(doc);
-                            },
-                          ),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                children: [
+                  _buildSearchBar(),
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: _loadInitialResults,
+                      child:
+                          _results.isEmpty
+                              ? const Center(
+                                child: Text("No results available yet."),
+                              )
+                              : ListView.builder(
+                                itemCount:
+                                    filteredResults.isEmpty
+                                        ? 2 // For header and "no results" message
+                                        : filteredResults.length +
+                                            1 +
+                                            (_hasMore ? 1 : 0),
+                                itemBuilder: (context, index) {
+                                  if (index == 0) {
+                                    return _buildSummaryHeader(avgScore);
+                                  }
+
+                                  if (filteredResults.isEmpty) {
+                                    return const Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.all(16.0),
+                                        child: Text(
+                                          "No results match your search.",
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  if (_hasMore &&
+                                      index == filteredResults.length + 1) {
+                                    _fetchResults();
+                                    return const Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    );
+                                  }
+
+                                  final doc = filteredResults[index - 1];
+                                  return _buildResultCard(doc);
+                                },
+                              ),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
       bottomNavigationBar: const AutoMarkBottomNav(currentIndex: 2),
     );
   }

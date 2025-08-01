@@ -64,7 +64,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     setState(() => _isLoadingMore = true);
 
     Query query = FirebaseFirestore.instance
-        .collection('answer_keys')
+        .collection('marking_guides')  // Changed from 'answer_keys' to 'marking_guides'
         .where('userId', isEqualTo: currentUser.uid)
         .orderBy('timestamp', descending: true)
         .limit(_pageSize);
@@ -92,6 +92,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
           'title': data['title'] ?? 'Untitled Guide',
           'answers': data['answers'] ?? [],
           'timestamp': data['timestamp'],
+          
         };
       }).toList();
       _isLoadingMore = false;
@@ -281,47 +282,51 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
   }
 
   Future<void> _deleteGuide(String id) async {
-  try {
-    final docRef = FirebaseFirestore.instance.collection('answer_keys').doc(id);
-    final docSnapshot = await docRef.get();
+    try {
+      final docRef = FirebaseFirestore.instance.collection('marking_guides').doc(id);
+      final docSnapshot = await docRef.get();
 
-    if (!docSnapshot.exists) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Guide not found.")),
-      );
-      return;
-    }
+      if (!docSnapshot.exists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Guide not found.")),
+        );
+        return;
+      }
+
 
    final data = docSnapshot.data()!;
   data['deletedAt'] = Timestamp.now();
   data['type'] = 'markingGuide'; // Important for History screen filtering
   data['userId'] = FirebaseAuth.instance.currentUser!.uid; // ✅ Required by Firestore rules
 
-  // Store in history
-  await FirebaseFirestore.instance.collection('history').add(data);
 
-    // Delete from original collection
-    await docRef.delete();
+      // Store in history
+      await FirebaseFirestore.instance.collection('history').add(data);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("🗑️ Guide moved to history.")),
-    );
 
-    await Provider.of<DashboardProvider>(context, listen: false).fetchStats();
+      // Delete from original collection
+      await docRef.delete();
 
-    setState(() {
-      _guideDocs.clear();
-      _lastGuideDoc = null;
-      _hasMoreGuides = true;
-    });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("🗑️ Guide moved to history.")),
+      );
 
-    _fetchSavedGuides(isInitial: true);
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Delete failed: $e")),
-    );
+      await Provider.of<DashboardProvider>(context, listen: false).fetchStats();
+
+      setState(() {
+        _guideDocs.clear();
+        _lastGuideDoc = null;
+        _hasMoreGuides = true;
+      });
+
+      _fetchSavedGuides(isInitial: true);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Delete failed: $e")),
+      );
+    }
   }
-}
+
 
 List<AnswerEntry> _basicParseFallback(String text) {
   final lines = text.split('\n');
@@ -355,6 +360,7 @@ List<AnswerEntry> _basicParseFallback(String text) {
 
   return entries;
 }
+
 
 
 
@@ -414,7 +420,19 @@ List<AnswerEntry> _basicParseFallback(String text) {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Marking Guide Scanner")),
+      appBar: AppBar(
+        title: const Text("Marking Guides"),
+        centerTitle: true,
+        elevation: 0,
+        actions: [
+          if (_isEditing)
+            IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => setState(() => _isEditing = false),
+              tooltip: 'Cancel Editing',
+            ),
+        ],
+      ),
       drawer: const CustomDrawer(),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -427,9 +445,10 @@ List<AnswerEntry> _basicParseFallback(String text) {
                 decoration: const InputDecoration(
                   labelText: 'Guide Title',
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.title),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 20),
               ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -437,43 +456,74 @@ List<AnswerEntry> _basicParseFallback(String text) {
                 itemBuilder: (context, index) => _buildAnswerCard(index),
               ),
               const SizedBox(height: 10),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.add),
-                label: const Text("Add Question"),
-                onPressed: _addNewQuestion,
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _isSaving ? null : _saveToFirebase,
-                child: _isSaving
-                    ? const CircularProgressIndicator()
-                    : const Text("Save Guide"),
-              ),
-            ],
-            if (!_isEditing) ...[
               Row(
                 children: [
                   Expanded(
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.photo),
-                      label: const Text("Gallery"),
-                      onPressed: () => _scanFromSource(ImageSource.gallery),
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.add),
+                      label: const Text("Add Question"),
+                      onPressed: _addNewQuestion,
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.camera_alt),
-                      label: const Text("Camera"),
-                      onPressed: () => _scanFromSource(ImageSource.camera),
+                    child: ElevatedButton(
+                      onPressed: _isSaving ? null : _saveToFirebase,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).primaryColor,
+                      ),
+                      child: _isSaving
+                          ? const CircularProgressIndicator()
+                          : const Text("Save Guide"),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 20),
+            ],
+            if (!_isEditing) ...[
+              Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      const Text(
+                        "Create New Marking Guide",
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.photo),
+                              label: const Text("Scan from Image"),
+                              onPressed: () => _scanFromSource(ImageSource.gallery),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.create),
+                              label: const Text("Create Manually"),
+                              onPressed: () {
+                                _entries.clear();
+                                _addNewQuestion();
+                                setState(() => _isEditing = true);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
               const Divider(),
               const Text(
-                "Saved Marking Guides",
+                "Your Marking Guides",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
@@ -496,6 +546,7 @@ List<AnswerEntry> _basicParseFallback(String text) {
                     final guide = _savedGuides[index];
                     final isSelected = guide['id'] == _selectedGuideId;
                     final savedDate = (guide['timestamp'] as Timestamp).toDate();
+                    final source = guide['source'] as String;
 
                     return Card(
                       elevation: 2,
@@ -503,9 +554,18 @@ List<AnswerEntry> _basicParseFallback(String text) {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       child: ListTile(
                         title: Text(guide['title']),
-                        subtitle: Text(
-                          "Saved on ${savedDate.toString().substring(0, 10)}",
-                          style: const TextStyle(fontSize: 12),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Saved on ${savedDate.toString().substring(0, 10)}",
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            Text(
+                              "Source: ${source == 'manual' ? 'Manually created' : 'Uploaded from script'}",
+                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -528,7 +588,10 @@ List<AnswerEntry> _basicParseFallback(String text) {
                               itemBuilder: (context) => [
                                 const PopupMenuItem(value: 'edit', child: Text('Edit')),
                                 const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                                const PopupMenuItem(value: 'select', child: Text('Select for Marking')),
+                                const PopupMenuItem(
+                                  value: 'select',
+                                  child: Text('Select for Marking'),
+                                ),
                               ],
                             ),
                           ],

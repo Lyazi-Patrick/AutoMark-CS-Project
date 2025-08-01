@@ -5,6 +5,7 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:archive/archive_io.dart';
 import 'package:xml/xml.dart';
 
+// FireParseService
 class FileParseService {
   static Future<String> extractTextFromFile(File file) async {
     try {
