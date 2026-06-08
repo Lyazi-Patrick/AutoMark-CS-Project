@@ -74,10 +74,10 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
-            const FeatureTile(text: "✅ Bulk Marking"),
-            const FeatureTile(text: "✅ Analytics Dashboard"),
-            const FeatureTile(text: "✅ Advanced PDF Reports"),
-            const FeatureTile(text: "✅ Long-term Script Storage"),
+            const FeatureTile(text: "Bulk Marking"),
+            const FeatureTile(text: "Analytics Dashboard"),
+            const FeatureTile(text: "Advanced PDF Reports"),
+            const FeatureTile(text: "Long-term Script Storage"),
             const SizedBox(height: 30),
             Center(
               child: ElevatedButton.icon(

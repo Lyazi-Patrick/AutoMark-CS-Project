@@ -177,14 +177,14 @@ class _ResultScreenState extends State<ResultScreen> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Result moved to history.')),
+        const SnackBar(content: Text('Result moved to history.')),
       );
 
       await Provider.of<DashboardProvider>(context, listen: false).fetchStats();
     } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('❌ Failed to delete result: $e')));
+      ).showSnackBar(SnackBar(content: Text('Failed to delete result: $e')));
     }
   }
 

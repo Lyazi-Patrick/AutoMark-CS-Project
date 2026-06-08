@@ -189,10 +189,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         password: passwordController.text.trim(),
       );
 
-      // 🔒 Re-authenticate first
+      //Re-authenticate first
       await user.reauthenticateWithCredential(cred);
 
-      // ✅ Now delete the account
+      //Now delete the account
       await user.delete();
 
       if (context.mounted) {
